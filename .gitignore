@@ -1,0 +1,63 @@
+# 데이터베이스 파일 (민감 정보)
+*.db
+*.sqlite
+*.sqlite3
+
+# 데이터 파일 (고객 정보, 키워드 데이터)
+data/
+*.xlsx
+*.xls
+*.csv
+
+# 개인 문서
+docs/etc/
+
+# 생성된 프롬프트 (개인 작업물)
+prompts/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+temp/
+tmp/
