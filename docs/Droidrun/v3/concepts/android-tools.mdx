@@ -1,0 +1,126 @@
+---
+title: 'Android 제어'
+description: 'DroidRun의 포괄적인 도구 API를 사용하여 Android 기기를 제어하는 방법을 배웁니다.
+도구는 AI 에이전트와 Android 기기 사이의 다리 역할을 하며, UI 상호작용, 앱 관리, 상태 분석을 가능하게 합니다. 도구를 직접 사용하거나 DroidAgent를 통해 자동화된 Android 테스트 및 제어에 활용하세요.'
+---
+
+> **도구(Tools)란?** AI 에이전트가 실제 Android 기기를 제어할 수 있게 해주는 "손과 눈" 같은 기능입니다. 마치 사람이 손으로 화면을 터치하고 눈으로 화면을 보는 것처럼, 도구를 통해 AI가 기기와 상호작용합니다.
+
+```python
+from droidrun import DroidAgent, AdbTools
+
+# 기기용 도구 로드
+tools = AdbTools(serial="device_serial")
+
+# 도구를 포함한 에이전트 생성
+agent = DroidAgent(
+    goal="수행할 작업",
+    llm=llm,
+    tools=tools
+)
+```
+
+## UI 상호작용 도구
+
+**`tap_by_index(index: int) -> str`**  
+캐시된 요소에서 인덱스로 UI 요소를 탭합니다. 먼저 `get_state()`를 호출해야 합니다.
+
+> **인덱스 탭핑**: 화면의 모든 UI 요소에 번호를 매긴 후, "3번 버튼을 눌러"라고 명령하는 방식입니다. 먼저 `get_state()`로 요소 목록을 가져와야 합니다.
+
+**`swipe(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool`**  
+스와이프 제스처를 수행합니다. 길게 누르기는 시작/끝 좌표를 동일하게 하고 더 긴 duration을 사용합니다.
+
+> **스와이프**: 화면을 손가락으로 쓸어내리는 동작입니다. 같은 위치에서 시작하고 끝나지만 오래 누르면 "길게 누르기"가 됩니다.
+
+**`input_text(text: str) -> str`**  
+포커스된 요소에 텍스트를 입력합니다. 특수 문자와 비ASCII 텍스트를 지원합니다.
+
+> **텍스트 입력**: 현재 선택된 입력 필드(예: 검색창, 메시지 입력창)에 글자를 타이핑합니다. 한글, 이모지 등도 입력 가능합니다.
+
+**`press_key(keycode: int) -> str`**  
+키코드를 사용하여 Android 키를 누릅니다. 주요 키: HOME (3), BACK (4), ENTER (66), DELETE (67).
+
+> **키코드**: Android의 각 버튼마다 고유한 번호가 있습니다. 예: 뒤로가기 버튼은 4번, 엔터는 66번입니다.
+
+**`back() -> str`**  
+Android 뒤로가기 버튼을 누르는 편의 메서드입니다.
+
+```python
+# UI 상호작용 예시
+tools.get_state()  # 먼저 요소를 캐시
+tools.tap_by_index(2)  # 요소 탭
+tools.swipe(500, 200, 500, 800, 400)  # 아래로 스와이프
+tools.input_text("안녕하세요, 세상!")
+tools.press_key(66)  # 엔터 키
+tools.back()
+```
+
+## 앱 관리 도구
+
+**`start_app(package: str, activity: str = "") -> str`**  
+패키지 이름과 선택적 액티비티로 애플리케이션을 시작합니다.
+
+> **패키지와 액티비티**: 
+> - 패키지: 앱의 고유한 ID (예: com.android.settings)
+> - 액티비티: 앱 내 특정 화면 (예: 설정의 Wi-Fi 화면)
+
+**`list_packages(include_system_apps: bool = False) -> List[str]`**  
+설치된 패키지를 나열합니다. 선택적으로 시스템 앱 포함 가능합니다.
+
+**`install_app(apk_path: str, reinstall: bool = False, grant_permissions: bool = True) -> str`**  
+APK 파일을 설치하며, 선택적으로 재설치 및 권한 부여가 가능합니다.
+
+> **APK 설치 옵션**:
+> - reinstall: 이미 설치된 앱을 덮어쓰기
+> - grant_permissions: 앱이 요구하는 권한(카메라, 위치 등)을 자동으로 허용
+
+```python
+# 앱 관리 예시
+await tools.start_app("com.android.settings")
+packages = await tools.list_packages()
+all_packages = await tools.list_packages(include_system_apps=True)
+await tools.install_app("/path/to/app.apk", reinstall=True)
+```
+
+## 상태 분석 도구
+
+**`get_state(serial: Optional[str] = None) -> Dict[str, Any]`**  
+접근성 트리와 전화 상태를 포함한 포괄적인 기기 상태를 가져옵니다. UI 요소를 캐시합니다.
+
+> **기기 상태**: 현재 화면에 무엇이 있는지(버튼, 텍스트 등), 기기가 어떤 상태인지(배터리, 네트워크 등)에 대한 전체 정보입니다.
+
+**`take_screenshot() -> Tuple[str, bytes]`**  
+기기 화면을 캡처하여 형식과 이미지 데이터를 반환합니다. GIF 생성을 위해 스크린샷을 저장합니다.
+
+> **스크린샷**: 현재 화면을 사진으로 찍습니다. 여러 장을 찍으면 나중에 GIF 애니메이션으로 만들 수 있습니다.
+
+```python
+# 상태 분석 예시
+state = await tools.get_state()
+a11y_tree = state["a11y_tree"]  # 접근성 트리 (UI 구조)
+phone_state = state["phone_state"]  # 전화 상태
+
+format, image_data = await tools.take_screenshot()
+```
+
+## 빠른 참조
+| 함수 | 용도 | 반환값 |
+|----------|---------|---------|
+| `tap_by_index(index)` | 인덱스로 UI 요소 탭 | 상태 메시지 |
+| `swipe(x1, y1, x2, y2, duration)` | 스와이프 제스처 | 성공 여부 (boolean) |
+| `input_text(text)` | 텍스트 입력 | 상태 메시지 |
+| `press_key(keycode)` | Android 키 누르기 | 상태 메시지 |
+| `back()` | 뒤로가기 버튼 누르기 | 상태 메시지 |
+| `start_app(package, activity)` | 애플리케이션 실행 | 상태 메시지 |
+| `list_packages(include_system)` | 설치된 앱 나열 | 패키지 목록 |
+| `install_app(path, reinstall, permissions)` | APK 설치 | 상태 메시지 |
+| `get_state(serial)` | 기기 상태 가져오기 | 상태 딕셔너리 |
+| `take_screenshot()` | 화면 캡처 | 형식과 이미지 데이터 |
+| `remember(info)` | 정보 저장 | 확인 메시지 |
+| `get_memory()` | 저장된 정보 검색 | 메모리 목록 |
+| `complete(success, reason)` | 작업 완료 | None |
+
+> **메모리 기능**: `remember`와 `get_memory`는 AI 에이전트가 중요한 정보를 "기억"하고 나중에 다시 불러올 수 있게 합니다. 마치 메모장에 적어두는 것과 같습니다.
+
+## 더 깊이 알아보기
+SDK 참조 문서는 v4 문서에서 확인할 수 있습니다.

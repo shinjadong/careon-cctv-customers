@@ -1,0 +1,324 @@
+---
+title: Ollama와 함께 Droidrun 사용하기
+---
+
+이 가이드는 로컬에서 대규모 언어 모델(LLM)을 실행하기 위한 오픈소스 플랫폼인 [Ollama](https://ollama.com/)와 함께 Droidrun 프레임워크를 사용하는 방법을 설명합니다. Ollama를 Droidrun과 통합하면 강력한 로컬 LLM을 활용하여 Android 기기를 자동화하고, 지능형 에이전트를 구축하며, 고급 워크플로를 실험할 수 있습니다.
+## Ollama란 무엇인가요?
+Ollama를 사용하면 자신의 컴퓨터에서 LLM을 실행하고, 관리하고, 상호작용할 수 있습니다. 다양한 최신 모델(예: Qwen2.5vl, Gemma3, DeepSeek, Llama 4 등)을 지원하며 통합을 위한 간단한 HTTP API를 제공합니다.
+
+> 📖 **Ollama 상세 설명**
+> 
+> **비유**: Docker가 애플리케이션을 컨테이너로 실행하듯, Ollama는 AI 모델을 로컬에서 실행합니다.
+> 
+> **주요 기능**:
+> - 📦 **모델 관리**: `ollama pull llama3` 처럼 간단하게 모델 다운로드
+> - 🔄 **모델 전환**: 명령어 하나로 다른 모델로 교체
+> - 🌐 **API 제공**: HTTP API로 프로그래밍 방식 접근
+> - 💻 **크로스 플랫폼**: Windows, Mac, Linux 모두 지원
+
+## Droidrun과 함께 Ollama를 사용하는 이유는?
+
+- **프라이버시:** 데이터를 클라우드로 보내지 않고 LLM을 로컬에서 실행합니다.
+- **성능:** 자체 하드웨어에서 낮은 지연 시간의 추론을 제공합니다.
+- **유연성:** 다양한 모델을 쉽게 선택하고 전환할 수 있습니다.
+- **비용:** API 사용료가 없습니다.
+
+> 💡 **실무 시나리오별 선택 가이드**
+> 
+> **Ollama 사용 권장**:
+> - ✅ 반복적인 테스트/개발 (무제한 요청)
+> - ✅ 민감한 개인정보 처리
+> - ✅ 오프라인 환경 작업
+> - ✅ GPU가 있는 고사양 PC
+> 
+> **클라우드 API 사용 권장**:
+> - ✅ 최고 성능 필요 (GPT-4, Claude)
+> - ✅ 저사양 PC/노트북
+> - ✅ 빠른 프로토타이핑 (설치 불필요)
+> - ✅ 다양한 모델 즉시 테스트
+
+## 사전 준비사항
+
+- **Ollama**가 컴퓨터에 설치되어 실행 중이어야 합니다 ([설치 가이드](https://ollama.com/download)).
+- **Python 3.10+**
+- **droidrun** 프레임워크 설치 ([Droidrun 빠른 시작](../quickstart.mdx) 참조).
+
+<Warning>
+Droidrun Portal을 설정하고 활성화했는지 확인하세요.
+</Warning>
+
+## 1. Ollama 설치 및 시작하기
+[공식 웹사이트](https://ollama.com/download)에서 Ollama를 다운로드하여 설치하세요. 설치 후 Ollama 서버를 시작합니다:
+
+```sh
+ollama serve
+```
+
+> 💡 **`ollama serve` 명령어**
+> 
+> **역할**: Ollama를 백그라운드 서버로 실행
+> 
+> **실행 방법**:
+> - **터미널에서 실행**: 위 명령어 입력 (터미널 유지 필요)
+> - **백그라운드 실행**: 대부분의 설치 시 자동으로 시작됨
+> 
+> **확인 방법**:
+> ```sh
+> # 서버 실행 여부 확인
+> curl http://localhost:11434
+> # 응답이 오면 정상 실행 중
+> ```
+
+사용하려는 최신 모델을 pull합니다 (예: Qwen2.5vl, Gemma3, DeepSeek, Llama 4):
+
+```sh
+ollama pull qwen2.5vl
+ollama pull gemma3
+ollama pull deepseek-r1  # 비전 기능 없음. vision=False일 때만 사용 가능
+ollama pull llama4
+```
+
+> 📖 **모델 선택 가이드**
+> 
+> | 모델 | 크기 | 비전 지원 | 특징 | 권장 사양 |
+> |------|------|-----------|------|-----------|
+> | **qwen2.5vl** | 3-32B | ✅ | 스크린샷 이해 가능 | 16GB RAM + GPU |
+> | **gemma3** | 3-27B | ✅ | Google 제작, 빠름 | 8GB RAM |
+> | **deepseek-r1** | 7-70B | ❌ | 추론 능력 우수 | 16GB RAM + GPU |
+> | **llama4** | 8-70B | ✅ | Meta 최신 모델 | 16GB RAM + GPU |
+> 
+> **다운로드 시간**: 모델 크기에 따라 수 분~수십 분 소요
+
+## 2. 필수 Python 패키지 설치하기
+
+필요한 Python 패키지가 설치되어 있는지 확인하세요:
+
+```sh
+pip install 'droidrun[ollama]'
+```
+
+## 3. 예시: Ollama LLM과 함께 Droidrun 사용하기
+다음은 Ollama를 LLM 백엔드로 사용하여 Droidrun을 사용하는 최소 예시입니다 (최신 모델 사용, 예: Qwen2.5vl):
+
+```python
+import asyncio
+from llama_index.llms.ollama import Ollama
+from droidrun import DroidAgent, AdbTools
+
+async def main():
+    # 첫 번째로 연결된 기기의 adb 도구 로드
+    tools = AdbTools()
+
+    # 최신 모델로 Ollama LLM 설정
+    llm = Ollama(
+        model="qwen2.5vl",                  # 또는 "gemma3", "deepseek", "llama4" 등
+        base_url="http://localhost:11434",  # 기본 Ollama 엔드포인트
+        context_window=8192,                # 메모리 부족 방지를 위해 최대 컨텍스트 윈도우 제한
+        request_timeout=120.0               # 요청 타임아웃 증가
+    )
+
+    # DroidAgent 생성
+    agent = DroidAgent(
+        goal="설정 앱 열고 배터리 잔량 확인하기",
+        llm=llm,
+        tools=tools,
+        vision=False,         # 선택 사항: 비전 활성화. 비전 모델과 함께 사용할 때만 vision=True 사용
+        reasoning=True,       # 선택 사항: 계획/추론 활성화. 에이전트 구성에 대한 자세한 내용은 Core-Concepts/Agent 참조
+    )
+
+    # 에이전트 실행
+    result = await agent.run()
+    print(f"성공: {result['success']}")
+    if result.get('output'):
+        print(f"출력: {result['output']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+> 📖 **주요 파라미터 상세 설명**
+> 
+> **context_window (컨텍스트 윈도우)**:
+> - **정의**: LLM이 한 번에 기억할 수 있는 최대 토큰 수
+> - **쉬운 비유**: 작업 메모리의 크기. 큰 책상 vs 작은 책상
+> - **8192의 의미**: 약 6,000단어 정도의 대화 기록 유지
+> 
+> **트레이드오프**:
+> - 낮은 값 (4096) → 메모리 절약, 빠름, 하지만 긴 대화 기억 못 함
+> - 높은 값 (32768) → 많이 기억, 느림, 메모리 많이 사용
+> 
+> **실무 권장값**:
+> - 일반 PC (8GB RAM): 4096-8192
+> - 고사양 PC (16GB+ RAM + GPU): 16384-32768
+> - 복잡한 다단계 작업: 높은 값 필요
+> 
+> **request_timeout (요청 타임아웃)**:
+> - **정의**: LLM 응답을 기다리는 최대 시간(초)
+> - **120.0의 의미**: 2분 동안 응답 대기
+> - **왜 필요한가**: 로컬 모델은 클라우드보다 느릴 수 있음
+> 
+> **상황별 권장값**:
+> - 빠른 모델 (3B): 30-60초
+> - 중형 모델 (7-13B): 60-120초
+> - 대형 모델 (70B): 180-300초
+> - Cloudflare proxy 사용 시: 더 높게 설정
+
+<Note>LLM의 context_window를 제한하면 메모리 사용량은 줄어들지만 에이전트 성능도 저하됩니다. 최상의 결과를 위해 가능한 한 확장해 보세요.</Note>
+
+> 💡 **성능 최적화 팁**
+> 
+> **메모리가 부족할 때**:
+> ```python
+> llm = Ollama(
+>     model="qwen2.5vl:3b",      # 더 작은 모델 사용
+>     context_window=4096,       # 컨텍스트 줄이기
+>     num_gpu=1                  # GPU 1개만 사용
+> )
+> ```
+> 
+> **성능을 최대로 끌어올리고 싶을 때**:
+> ```python
+> llm = Ollama(
+>     model="qwen2.5vl:32b",     # 큰 모델
+>     context_window=32768,      # 큰 컨텍스트
+>     num_gpu=-1,                # 모든 GPU 사용
+>     request_timeout=300.0      # 넉넉한 타임아웃
+> )
+> ```
+
+## 4. 문제 해결
+
+- **Ollama가 실행되지 않음:** `ollama serve`가 실행 중이고 `http://localhost:11434`에서 접근 가능한지 확인하세요.
+- **모델을 찾을 수 없음:** `ollama pull <모델>`로 원하는 모델을 pull했는지 확인하세요.
+- **연결 오류:** 방화벽 설정과 엔드포인트 URL이 올바른지 확인하세요.
+- **타임아웃:** Ollama가 Cloudflare 같은 프록시 뒤에서 실행되는 경우 요청 타임아웃이 충분히 높게 설정되어 있는지 확인하세요.
+- **성능:** 일부 모델은 상당한 RAM/CPU를 필요로 합니다. 문제가 발생하면 더 작은 모델을 시도해 보세요.
+- **호환성:** 비전 모델은 Apple Silicon 칩에서 제대로 작동하지 않습니다. [이슈 #55 (droidrun)](https://github.com/droidrun/droidrun/issues/55#issuecomment-2959912711), [이슈 @ ollama](https://github.com/ollama/ollama/issues/10986) 확인하세요.
+
+> 🔧 **구체적인 문제 해결 절차**
+> 
+> **1. "Connection refused" 에러**
+> ```sh
+> # 1단계: Ollama 실행 확인
+> ps aux | grep ollama        # Mac/Linux
+> # 또는
+> Get-Process ollama          # Windows PowerShell
+> 
+> # 2단계: 서버 응답 테스트
+> curl http://localhost:11434/api/tags
+> 
+> # 3단계: 방화벽 확인
+> # Windows: 제어판 → 방화벽 → Ollama 허용 확인
+> # Mac: 시스템 환경설정 → 보안 → Ollama 허용
+> ```
+> 
+> **2. "Model not found" 에러**
+> ```sh
+> # 설치된 모델 목록 확인
+> ollama list
+> 
+> # 원하는 모델이 없으면 다운로드
+> ollama pull qwen2.5vl
+> ```
+> 
+> **3. 느린 응답 / 타임아웃**
+> ```python
+> # 타임아웃 증가
+> llm = Ollama(
+>     model="qwen2.5vl",
+>     request_timeout=300.0,    # 5분으로 증가
+> )
+> 
+> # 또는 더 작은/빠른 모델 사용
+> ollama pull qwen2.5vl:3b      # 3B 버전 (더 빠름)
+> ```
+> 
+> **4. 메모리 부족 (Out of Memory)**
+> ```sh
+> # 현재 GPU 메모리 확인
+> nvidia-smi                    # NVIDIA GPU
+> 
+> # 해결 방법:
+> # A) 더 작은 모델 사용
+> ollama pull llama3.2:3b
+> 
+> # B) 컨텍스트 윈도우 줄이기
+> # Python 코드에서 context_window=4096으로 설정
+> ```
+> 
+> **5. Apple Silicon에서 비전 모델 오류**
+> ```python
+> # 해결 방법 1: 비전 비활성화
+> agent = DroidAgent(
+>     goal="설정 앱 열기",
+>     llm=llm,
+>     tools=tools,
+>     vision=False,             # 비전 끄기
+> )
+> 
+> # 해결 방법 2: 비전 미지원 모델 사용
+> llm = Ollama(model="deepseek-r1")  # 비전 없는 모델
+> ```
+> 
+> **6. Cloudflare/프록시 타임아웃**
+> ```python
+> # Cloudflare 무료 플랜은 100초 제한
+> # 해결: 타임아웃을 90초 이하로 설정하거나
+> # Pro 플랜 사용
+> llm = Ollama(
+>     model="qwen2.5vl:3b",     # 빠른 모델
+>     request_timeout=90.0,     # 100초 이하
+> )
+> ```
+
+## 5. 팁
+
+- `Ollama` 생성자에서 `model` 파라미터를 변경하여 모델을 전환할 수 있습니다.
+- `ollama list`를 통해 사용 가능한 다양한 모델을 탐색하세요.
+- 고급 구성은 [DroidAgent 문서](../concepts/agent) 및 [Ollama API 문서](https://github.com/jmorganca/ollama/blob/main/docs/README.md)를 참조하세요.
+
+> 💡 **고급 사용 팁**
+> 
+> **여러 모델 비교 테스트**:
+> ```python
+> models = ["qwen2.5vl:3b", "gemma3", "llama4"]
+> 
+> for model_name in models:
+>     llm = Ollama(model=model_name)
+>     agent = DroidAgent(goal="설정 앱 열기", llm=llm, tools=tools)
+>     result = await agent.run()
+>     print(f"{model_name}: {result['success']}")
+> ```
+> 
+> **로컬 + 클라우드 하이브리드**:
+> ```python
+> # 간단한 작업: 로컬 Ollama
+> simple_llm = Ollama(model="qwen2.5vl:3b")
+> 
+> # 복잡한 작업: 클라우드 GPT-4
+> from llama_index.llms.openai import OpenAI
+> complex_llm = OpenAI(model="gpt-4")
+> 
+> # 조건에 따라 선택
+> llm = simple_llm if is_simple_task else complex_llm
+> ```
+> 
+> **배치 처리로 효율성 높이기**:
+> ```python
+> # 여러 기기를 동시에 제어
+> tasks = [
+>     "기기1: 설정 열기",
+>     "기기2: 카카오톡 열기",
+>     "기기3: 배터리 확인"
+> ]
+> 
+> # 동시 실행 (Ollama는 로컬이라 API 제한 없음)
+> results = await asyncio.gather(*[
+>     DroidAgent(goal=task, llm=llm, tools=tools).run()
+>     for task in tasks
+> ])
+> ```
+
+---
+
+이 설정을 통해 Droidrun과 Ollama를 사용하여 Android 자동화 및 에이전트 기반 워크플로를 위한 로컬의 최첨단 LLM의 힘을 활용할 수 있습니다!

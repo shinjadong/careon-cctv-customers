@@ -1,0 +1,499 @@
+---
+title: '빠른 시작'
+description: 'DroidRun을 빠르고 효과적으로 시작하세요'
+---
+
+<iframe
+  className="w-full aspect-video rounded-xl"
+  src="https://www.youtube.com/embed/4WT7FXJah2I"
+  title="YouTube video player"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+이 가이드는 DroidRun을 설치하고 실행하여, 몇 분 안에 자연어를 통해 Android 기기를 제어할 수 있도록 도와드립니다.
+
+## 사전 준비사항
+
+DroidRun을 설치하기 전에 다음 사항을 확인하세요:
+1. **Python 3.11+**가 시스템에 설치되어 있어야 합니다
+2. [Android Debug Bridge (adb)](https://developer.android.com/studio/releases/platform-tools)가 설치되고 구성되어 있어야 합니다
+3. **Android 기기**에 다음 사항이 필요합니다:
+   - [개발자 옵션 활성화](https://developer.android.com/studio/debug/dev-options)
+   - USB 디버깅 활성화
+   - USB 또는 같은 네트워크를 통해 연결 (무선 디버깅용)
+
+> 📖 **사전 준비사항 상세 설명**
+> 
+> **1. Python 3.11+ 확인 방법**:
+> ```sh
+> python --version
+> # 또는
+> python3 --version
+> 
+> # 출력 예시: Python 3.11.5
+> # 3.11 이상이면 OK
+> ```
+> 
+> **Python 설치가 필요한 경우**:
+> - Windows: [python.org](https://www.python.org/downloads/)에서 다운로드
+> - Mac: `brew install python3` (Homebrew 사용)
+> - Linux: `sudo apt install python3` (Ubuntu/Debian)
+> 
+> **2. ADB (Android Debug Bridge) 설치**:
+> 
+> **ADB란?** 컴퓨터와 Android 기기를 연결하는 개발자 도구 (이전 문서에서 설명)
+> 
+> **설치 방법**:
+> - **방법 1**: Android Studio 설치 (가장 쉬움)
+>   - [Android Studio](https://developer.android.com/studio) 다운로드
+>   - SDK Manager에서 "Android SDK Platform-Tools" 설치
+> 
+> - **방법 2**: Platform Tools만 설치 (가벼움)
+>   - [Platform Tools 다운로드](https://developer.android.com/studio/releases/platform-tools)
+>   - 압축 해제 후 환경 변수 PATH에 추가
+> 
+> **설치 확인**:
+> ```sh
+> adb version
+> # 출력: Android Debug Bridge version 1.0.41
+> ```
+> 
+> **3. Android 기기 설정**:
+> 
+> **개발자 옵션 활성화** (기기마다 다를 수 있음):
+> 1. 설정 → 휴대전화 정보
+> 2. "빌드 번호" 7번 연속 탭
+> 3. "이제 개발자입니다!" 메시지 표시
+> 
+> **USB 디버깅 활성화**:
+> 1. 설정 → 개발자 옵션
+> 2. "USB 디버깅" 토글 ON
+> 3. USB 연결 시 "USB 디버깅 허용?" 팝업에서 "항상 허용" 체크 후 확인
+> 
+> **연결 확인**:
+> ```sh
+> adb devices
+> # 출력 예시:
+> # List of devices attached
+> # ABC123DEF456    device
+> ```
+> 
+> **문제 해결**:
+> - "unauthorized" 표시: 기기에서 USB 디버깅 팝업 확인
+> - "no devices" 표시: USB 케이블 교체 또는 드라이버 설치
+> - Windows: [Google USB Driver](https://developer.android.com/studio/run/win-usb) 필요
+
+## 설치
+
+DroidRun은 빠른 Python 패키지 설치 및 리졸버인 [`uv`](https://docs.astral.sh/uv/)를 사용하여 설치합니다.
+
+> 📖 **uv란?**
+> 
+> **정의**: Rust로 작성된 초고속 Python 패키지 관리자
+> 
+> **pip vs uv 비교**:
+> - `pip`: Python 기본 패키지 설치 도구 (느림)
+> - `uv`: 차세대 도구 (10~100배 빠름)
+> 
+> **왜 uv를 사용하나요?**
+> - ⚡ 속도: 패키지 설치가 매우 빠름
+> - 🔒 안정성: 종속성 충돌 해결 개선
+> - 🎯 간편함: 가상환경 자동 관리
+> 
+> **걱정하지 마세요**: pip를 대체하는 것이 아니라 함께 사용 가능합니다.
+
+**uv 설치 (아직 설치하지 않은 경우):**
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+> 💡 **uv 설치 확인**:
+> ```sh
+> uv --version
+> # 출력: uv 0.x.x
+> ```
+> 
+> **설치 후 터미널 재시작** 필요할 수 있습니다.
+
+**설치 방법 선택:**
+**CLI 전용 사용:**
+```bash
+uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+```
+
+**CLI + Python 코드 통합:**
+```bash
+uv pip install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+```
+
+> 📖 **설치 방법 비교**
+> 
+> | 방법 | 용도 | 장점 | 단점 |
+> |------|------|------|------|
+> | `uv tool install` | CLI 명령어만 사용 | 격리된 환경, 깔끔함 | Python 스크립트에서 import 불가 |
+> | `uv pip install` | CLI + Python 코드 | 스크립트 작성 가능 | 프로젝트 환경 관리 필요 |
+> 
+> **선택 기준**:
+> - 터미널에서만 사용 → `tool install`
+> - Python 코드 작성 예정 → `pip install`
+> - 잘 모르겠으면 → `pip install` (더 범용적)
+> 
+> **extras 설명** (`[google,anthropic,...]`):
+> - `google`: Gemini 사용
+> - `anthropic`: Claude 사용
+> - `openai`: GPT 사용
+> - `deepseek`: DeepSeek 사용
+> - `ollama`: 로컬 Ollama 모델
+> - `openrouter`: OpenRouter 통합 서비스
+> 
+> **필요한 것만 설치 가능**:
+> ```bash
+> # 예: Gemini와 OpenAI만 사용
+> uv pip install 'droidrun[google,openai]'
+> ```
+
+<Note>
+특정 프로바이더만 필요한 경우, 해당 프로바이더만 설치할 수 있습니다. 예를 들어, `uv tool install 'droidrun[google,openai]'`는 Google Gemini와 OpenAI 지원만 설치합니다.
+</Note>
+
+## Portal APK 설정
+
+DroidRun은 기기 제어를 위해 Android 기기에 Portal 앱이 설치되어 있어야 합니다. Portal 앱은 UI 접근성 트리를 노출하는 접근성 서비스를 제공하여 에이전트가 UI 요소를 보고 상호작용할 수 있게 합니다.
+
+> 📖 **Portal APK가 필요한 이유**
+> 
+> DroidRun은 두 부분으로 구성됩니다:
+> 1. **컴퓨터 측**: DroidRun 프레임워크 (명령 내리는 쪽)
+> 2. **기기 측**: Portal 앱 (명령 실행하는 쪽)
+> 
+> **Portal 앱의 역할**:
+> - 📱 화면의 UI 요소 정보 수집 (버튼, 텍스트 필드 등)
+> - 🔗 ADB를 통해 컴퓨터로 정보 전달
+> - 🖱️ 컴퓨터의 명령 실행 (클릭, 입력 등)
+> 
+> 자세한 내용은 [Portal App 개념 문서](./concepts/portal-app)를 참조하세요.
+
+```bash
+droidrun setup
+```
+
+이 명령은 자동으로:
+1. 최신 Portal APK를 다운로드합니다
+2. 연결된 기기에 설치합니다
+3. 접근성 서비스를 활성화합니다
+
+> 💡 **setup 명령 실행 시**:
+> 
+> **정상 진행 시 출력**:
+> ```
+> Downloading Portal APK...
+> Installing on device ABC123DEF456...
+> Enabling accessibility service...
+> ✓ Setup complete!
+> ```
+> 
+> **기기에서 확인할 사항**:
+> 1. 앱 목록에 "DroidRun Portal" 아이콘 생성됨
+> 2. 접근성 권한 요청 팝업 표시
+>    - "설정" 버튼 클릭
+>    - "DroidRun Portal" 토글 ON
+>    - 권한 경고 확인 (정상적인 동작)
+> 
+> **문제 발생 시**:
+> - "Installation failed": 개발자 옵션에서 "앱 설치 허용" 확인
+> - "Accessibility denied": 수동으로 설정 → 접근성 → Portal 활성화
+> - "Device not found": `adb devices` 명령으로 연결 확인
+
+## 연결 테스트
+
+DroidRun이 기기와 통신할 수 있는지 확인하세요:
+
+```bash
+droidrun ping
+```
+
+성공하면 다음과 같이 표시됩니다:
+```
+✓ Portal is running
+✓ Accessibility service enabled
+✓ Device ready
+```
+
+> 🔍 **ping 명령 상세**
+> 
+> **이 명령이 확인하는 것**:
+> 1. ✓ Portal 앱이 실행 중인지
+> 2. ✓ 접근성 서비스가 활성화되어 있는지
+> 3. ✓ ADB 연결이 정상인지
+> 4. ✓ 기기가 명령을 받을 준비가 되었는지
+> 
+> **실패 시 메시지별 해결 방법**:
+> 
+> **"Portal not running"**:
+> ```sh
+> # Portal 앱 실행 (기기에서)
+> # 또는 재설치
+> droidrun setup
+> ```
+> 
+> **"Accessibility service disabled"**:
+> - 기기 설정 → 접근성 → DroidRun Portal → ON
+> 
+> **"Device not found"**:
+> ```sh
+> adb devices  # 연결 확인
+> adb kill-server
+> adb start-server  # ADB 재시작
+> ```
+> 
+> **여러 기기 연결 시**:
+> ```sh
+> # 특정 기기 지정
+> droidrun ping --device ABC123DEF456
+> ```
+
+## LLM 구성
+
+DroidRun은 구성 주도 방식을 사용합니다. 첫 실행 시 DroidRun은 기본 설정이 포함된 `config.yaml` 파일을 생성합니다. 선택한 LLM 프로바이더의 API 키를 설정해야 합니다.
+**API 키 설정:**
+
+```bash
+# Google Gemini용 (기본값)
+export GOOGLE_API_KEY=your-api-key-here
+
+# OpenAI용
+export OPENAI_API_KEY=your-api-key-here
+
+# Anthropic Claude용
+export ANTHROPIC_API_KEY=your-api-key-here
+
+# DeepSeek용
+export DEEPSEEK_API_KEY=your-api-key-here
+```
+
+> 📖 **LLM 프로바이더 선택 가이드**
+> 
+> | 프로바이더 | 특징 | 추천 대상 | API 키 발급 |
+> |-----------|------|-----------|------------|
+> | **Google Gemini** | 기본값, 멀티모달 | 초보자, 비전 필요 시 | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+> | **OpenAI** | 최고 성능 | 중요한 작업 | [OpenAI Platform](https://platform.openai.com/api-keys) |
+> | **Anthropic** | 긴 문맥 이해 | 복잡한 지시사항 | [Anthropic Console](https://console.anthropic.com/) |
+> | **DeepSeek** | 저렴한 비용 | 비용 절감 | [DeepSeek Platform](https://platform.deepseek.com/) |
+> | **Ollama** | 로컬 실행 | 오프라인, 무료 | 불필요 (로컬) |
+> 
+> **첫 시작 추천**: Google Gemini (무료 할당량 충분, 쉬운 설정)
+> 
+> **환경 변수 영구 설정** (선택사항):
+> ```bash
+> # Mac/Linux
+> echo 'export GOOGLE_API_KEY="your-key"' >> ~/.zshrc
+> source ~/.zshrc
+> 
+> # Windows PowerShell
+> [System.Environment]::SetEnvironmentVariable(
+>     "GOOGLE_API_KEY", "your-key", "User"
+> )
+> ```
+> 
+> **API 키 발급 방법**은 각 프로바이더 가이드 참조:
+> - [Gemini 가이드](./guides/gemini)
+> - [OpenAI 가이드](./guides/openailike)
+> - [Ollama 가이드](./guides/ollama)
+
+## CLI를 통한 첫 명령 실행
+
+이제 자연어로 기기를 제어할 준비가 되었습니다:
+
+```bash
+# 기본 구성 사용 (Google Gemini)
+droidrun run "설정 앱 열고 Android 버전 알려줘"
+# 프로바이더와 모델 변경
+droidrun run "배터리 잔량 확인해줘" --provider OpenAI --model gpt-4o
+# 비전 모드 활성화 (LLM에 스크린샷 전송)
+droidrun run "현재 어떤 앱이 열려있어?" --vision
+# 추론 모드 활성화 (복잡한 작업을 위한 Manager-Executor 워크플로 사용)
+droidrun run "John이라는 연락처 찾아서 이메일 보내줘" --reasoning
+```
+
+> 💡 **CLI 사용 실전 예시**
+> 
+> **간단한 작업** (빠른 실행):
+> ```bash
+> droidrun run "카카오톡 열어줘"
+> droidrun run "Wi-Fi 켜줘"
+> droidrun run "볼륨 높여줘"
+> ```
+> 
+> **스크린샷 필요한 작업** (vision 모드):
+> ```bash
+> droidrun run --vision "화면에 빨간 버튼 있으면 클릭해줘"
+> droidrun run --vision "현재 화면에 뭐가 보여?"
+> ```
+> 
+> **복잡한 다단계 작업** (reasoning 모드):
+> ```bash
+> droidrun run --reasoning \
+>   "인스타그램 열고 최신 사진 업로드하고 해시태그 3개 추가해줘"
+> ```
+> 
+> **디버깅** (상세 로그):
+> ```bash
+> droidrun run --debug --tracing "설정 앱 열어줘"
+> ```
+
+**주요 CLI 플래그:**
+- `--provider` - LLM 프로바이더 (GoogleGenAI, OpenAI, Anthropic 등)
+- `--model` - 모델 이름 (models/gemini-2.5-pro, gpt-4o 등)
+- `--vision` - 스크린샷 처리 활성화
+- `--reasoning` - 멀티 에이전트 계획 모드 활성화
+- `--steps N` - 최대 실행 단계 (기본값: 15)
+- `--debug` - 상세 로깅 활성화
+
+> 📖 **CLI 플래그 상세 설명**
+> 
+> **--vision** (비전 모드):
+> - 스크린샷을 찍어서 LLM에게 전송
+> - 시각적 UI 요소 인식 가능
+> - 비용 증가 (이미지 처리 비용)
+> 
+> **--reasoning** (추론 모드):
+> - Manager(계획) + Executor(실행) 구조
+> - 복잡한 작업을 단계별로 분해
+> - 실행 시간 증가하지만 성공률 향상
+> 
+> **--steps** (단계 제한):
+> - 무한 루프 방지
+> - 기본값 15단계면 대부분 충분
+> - 복잡한 작업은 30~50으로 증가
+> 
+> **--debug** (디버그 모드):
+> - 각 단계의 상세 정보 출력
+> - 실패 원인 파악 시 유용
+> - 로그 파일로 저장 가능
+> 
+> 자세한 내용은 [CLI 사용 가이드](./guides/cli)를 참조하세요.
+
+## 스크립트를 통한 간단한 에이전트 만들기
+
+복잡한 자동화나 Python 프로젝트에 통합하려면 스크립트를 작성하세요:
+
+```python
+import asyncio
+from droidrun import DroidAgent
+from droidrun.config_manager import DroidrunConfig
+
+async def main():
+    # 내장 LLM 프로필과 함께 기본 구성 사용
+    config = DroidrunConfig()
+
+    # 에이전트 생성
+    # LLM은 config.llm_profiles에서 자동으로 로드됨
+    agent = DroidAgent(
+        goal="설정 열고 배터리 잔량 확인하기",
+        config=config,
+    )
+
+    # 에이전트 실행
+    result = await agent.run()
+
+    # 결과 확인 (result는 ResultEvent 객체)
+    print(f"성공: {result.success}")
+    print(f"이유: {result.reason}")
+    print(f"단계: {result.steps}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+> 📖 **CLI vs 스크립트 비교**
+> 
+> | 방식 | 장점 | 단점 | 사용 시나리오 |
+> |------|------|------|--------------|
+> | **CLI** | 빠르고 간단, 즉시 테스트 | 자동화 어려움, 제한적 제어 | 일회성 작업, 빠른 테스트 |
+> | **스크립트** | 자동화 가능, 세밀한 제어 | 코드 작성 필요 | 반복 작업, 복잡한 로직 |
+> 
+> **CLI 사용 예시**:
+> - "설정 앱 열어줘" 같은 간단한 명령
+> - 새로운 기능 빠르게 테스트
+> - 데모 또는 프레젠테이션
+> 
+> **스크립트 사용 예시**:
+> ```python
+> # 매일 반복되는 작업 자동화
+> tasks = [
+>     "아침 9시 알람 설정",
+>     "이메일 앱 열고 미확인 메일 개수 확인",
+>     "날씨 앱에서 오늘 날씨 확인"
+> ]
+> 
+> for task in tasks:
+>     agent = DroidAgent(goal=task, config=config)
+>     result = await agent.run()
+>     results.append(result)
+> 
+> # 결과를 파일로 저장하거나 알림 전송
+> ```
+> 
+> **고급 스크립트 패턴**:
+> ```python
+> # 조건부 실행
+> if battery_low:
+>     agent = DroidAgent(
+>         goal="절전 모드 켜고 불필요한 앱 종료",
+>         config=config
+>     )
+>     await agent.run()
+> 
+> # 에러 처리
+> try:
+>     result = await agent.run()
+>     if not result.success:
+>         # 실패 시 재시도 또는 알림
+>         send_notification(f"작업 실패: {result.reason}")
+> except Exception as e:
+>     log_error(e)
+> ```
+> 
+> 자세한 내용은 [Agent 아키텍처 문서](./concepts/architecture)를 참조하세요.
+
+## 다음 단계
+
+이제 DroidRun이 실행되었으니 다음 주제를 살펴보세요:
+
+- [가이드](./guides/overview) 둘러보기
+- [에이전트 아키텍처](./concepts/architecture) 학습하기
+- [구성 시스템](./sdk/configuration) 커스터마이징하기
+- [앱 카드](./features/app-cards)로 에이전트 가이드하기
+
+> 🎯 **학습 경로 추천**
+> 
+> **초보자 경로**:
+> 1. ✅ 빠른 시작 (현재 문서) - 완료!
+> 2. 📖 [CLI 사용 가이드](./guides/cli) - 다양한 명령어 익히기
+> 3. 🎨 [Portal App 개념](./concepts/portal-app) - 작동 원리 이해
+> 4. 🔧 [문제 해결 가이드](./guides/troubleshooting) - 일반적인 문제 해결
+> 
+> **중급자 경로**:
+> 1. 🏗️ [Agent 아키텍처](./concepts/architecture) - 심화 이해
+> 2. ⚙️ [구성 시스템](./sdk/configuration) - 커스터마이징
+> 3. 🎯 [앱 카드](./features/app-cards) - 효율성 향상
+> 4. 📝 [Python API](./sdk/agent) - 스크립트 작성
+> 
+> **고급자 경로**:
+> 1. 🔬 [커스텀 도구 만들기](./sdk/tools) - 기능 확장
+> 2. 🧪 [고급 워크플로](./guides/advanced) - 복잡한 자동화
+> 3. 🤝 [기여하기](https://github.com/droidrun/droidrun) - 오픈소스 참여
+> 
+> **커뮤니티**:
+> - 💬 [Discord](https://discord.gg/droidrun) - 질문 및 토론
+> - 🐛 [GitHub Issues](https://github.com/droidrun/droidrun/issues) - 버그 리포트
+> - 📚 [Examples](https://github.com/droidrun/droidrun/tree/main/examples) - 예제 코드
+
+---

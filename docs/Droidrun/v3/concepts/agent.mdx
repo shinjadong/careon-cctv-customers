@@ -1,0 +1,127 @@
+---
+title: 'Agent & Execution Modes'
+description: 'Understanding the DroidAgent system in DroidRun'
+---
+
+## 설정
+
+```python
+# DroidAgent의 매개변수
+def __init__(
+    self, 
+    goal: str,                                  # 에이전트가 달성해야 할 목표
+    llm: LLM,                                   # 사용할 언어 모델
+    tools: Tools,                               # 로드된 도구들
+    personas: List[AgentPersona] = [DEFAULT],   # 실험적 기능: 에이전트의 커스텀 시스템 프롬프트
+    max_steps: int = 15,                        # 에이전트가 수행할 최대 단계 수
+    timeout: int = 1000,                        # 전역 타임아웃 (밀리초)
+    vision: bool = False,                       # 에이전트가 스크린샷도 활용할지 여부
+    reasoning: bool = False,                    # 추론 기능 활성화
+    reflection: bool = False,                   # 반성 기능 활성화
+    enable_tracing: bool = False,               # 추적 활성화 (arize phoenix 필요)
+    debug: bool = False,                        # 추가 디버그 로그 활성화
+    save_trajectories: str = "none",            # 궤적 저장 수준: "none" (저장 안 함), "step" (단계별 저장), "action" (액션별 저장)
+    *args,
+    **kwargs
+)
+```
+
+## 실행 모드
+
+> **실행 모드란?** 작업의 복잡도에 따라 AI 에이전트가 "어떻게 생각하고 행동할지"를 결정하는 전략입니다. 단순한 작업은 빠르게, 복잡한 작업은 신중하게 접근합니다.
+에이전트는 세 가지 고유한 모드로 작동하며, 각 모드는 서로 다른 복잡도 수준과 사용 사례에 최적화되어 있습니다.
+### 직접 실행 (Direct Execution)
+<div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+  <span style={{background: 'rgba(107, 114, 128, 0.2)', color: '#6b7280', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>추론 수준: 낮음</span>
+  <span style={{background: 'rgba(13, 147, 115, 0.2)', color: '#0D9373', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>속도: 빠름</span>
+</div>
+
+```python
+# 단순한 작업
+agent = DroidAgent(
+    goal="현재 화면의 스크린샷 찍기",
+    llm=llm,
+    tools=tools,
+    reasoning=False
+)
+```
+**실행 흐름:** 목표 → 직접 실행 → 결과
+
+> **직접 실행 모드**: 마치 "불 꺼줘"라고 하면 바로 스위치를 누르는 것처럼, 계획 없이 목표를 바로 실행합니다. 빠르지만 복잡한 작업에는 부적합합니다.
+**모범 사례:**
+- 단일 액션 작업에 사용 (1-15단계)
+- 목표를 구체적이고 원자적으로 유지
+- 계획 오버헤드 없이 빠른 실행
+### 계획 모드 (Planning Mode)
+<div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+  <span style={{background: 'rgba(217, 119, 6, 0.2)', color: '#d97706', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>추론 수준: 중간</span>
+  <span style={{background: 'rgba(217, 119, 6, 0.2)', color: '#d97706', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>속도: 중간</span>
+</div>
+
+```python
+# 탐색과 의사결정이 필요한 다단계 작업
+agent = DroidAgent(
+    goal="오전 7시 알람을 설정하고, 커스텀 벨소리와 '출근' 라벨 추가하기",
+    llm=llm,
+    tools=tools,
+    reasoning=True
+)
+```
+**실행 흐름:** 목표 → 계획 수립 → 단계별 실행 → 결과
+> **계획 모드**: 여행을 가기 전에 "짐 싸기 → 교통편 예약 → 숙소 예약" 같은 순서를 먼저 정하는 것처럼, 작업을 단계별로 나누어 계획한 후 실행합니다.
+**모범 사례:**
+- 다단계 작업에 사용 (15-50단계)
+- 앱/화면 간 탐색에 이상적
+- 단계별 분해가 필요한 작업에 적합
+### 반성 모드 (Reflection Mode)
+<div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+  <span style={{background: 'rgba(13, 147, 115, 0.2)', color: '#0D9373', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>추론 수준: 높음</span>
+  <span style={{background: 'rgba(107, 114, 128, 0.2)', color: '#6b7280', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold'}}>속도: 느림</span>
+</div>
+
+```python
+# 검증과 적응형 계획이 필요한 복잡한 다중 앱 워크플로우
+agent = DroidAgent(
+    goal="다음 주말 맨해튼에서 가장 저렴한 호텔을 찾고, 여러 예약 앱에서 가격을 비교한 후, 최선의 옵션을 Slack으로 팀에게 공유하기",
+    llm=llm,
+    tools=tools,
+    reasoning=True,
+    reflection=True
+)
+```
+<Warning>반성 기능은 스크린샷 기반입니다. 비전 기능이 있는 LLM 모델(예: GPT-4o, Gemini-2.5-Flash 등)과 함께 사용하세요.</Warning>
+
+**실행 흐름:** 목표 → 계획 수립 → 실행 → 반성 → 재계획 (필요시) → 결과
+
+> **반성 모드**: 시험 문제를 풀고 나서 "내가 제대로 풀었나?" 하고 검토하는 것처럼, 실행 후 결과를 확인하고 필요하면 계획을 수정합니다. 가장 신중하지만 느립니다.
+
+**모범 사례:**
+- 복잡한 워크플로우에 사용 (50단계 이상)
+- 품질 관리와 검증에 필수적
+- 컨텍스트 보존이 중요할 때 최적
+## 비전 기능 (Vision Capabilities)
+<Warning>비전 기능은 DeepSeek 프로바이더에서 비활성화되며, 비전 기능이 있는 LLM 모델(예: GPT-4o, Gemini-2.5-Flash 등)이 필요합니다.</Warning>
+
+> **비전 기능이란?** AI가 화면을 "보고" 이해할 수 있는 능력입니다. 사람이 눈으로 앱 화면을 보듯이, AI도 스크린샷을 분석하여 시각적 요소를 파악합니다.
+
+기본적으로 DroidAgent는 Android의 접근성 API를 활용하여 UI 계층 구조를 XML로 추출하므로, 비전 없이 완전히 작동합니다. 이 방식은 효율적이며 대부분의 자동화 작업에 적합합니다.
+
+하지만 비전 기능을 활성화하면 에이전트가 스크린샷을 찍고 기기 화면을 시각적으로 분석할 수 있어, 특정 시나리오에서 유용합니다:
+
+```python
+# 비전 기능을 활성화하려면 에이전트 설정에서 `vision=True`로 설정하세요.
+agent = DroidAgent(
+    goal="TikTok을 열고 보이는 비디오의 내용을 설명하기",
+    llm=llm,
+    tools=tools,
+    vision=True
+)
+```
+
+> **XML vs 스크린샷**: 
+> - XML 방식: 앱의 "설계도"를 읽는 것 (버튼, 텍스트 위치 등이 코드로 명시됨)
+> - 비전 방식: 실제 화면을 "눈으로 보는" 것 (이미지, 색상, 레이아웃을 시각적으로 분석)
+**비전 기능이 유용한 경우:**
+- **콘텐츠 중심 애플리케이션**: 앱에 XML 계층 구조로 완전히 캡처되지 않는 복잡한 시각적 요소, 이미지 또는 레이아웃이 포함된 경우
+- **시각적 검증**: 시각적 요소나 레이아웃의 확인이 필요한 작업
+- **향상된 컨텍스트 이해**: UI 구조만으로는 의사결정에 충분한 정보를 제공하지 못하는 경우

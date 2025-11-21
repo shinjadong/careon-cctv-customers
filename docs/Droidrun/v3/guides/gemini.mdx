@@ -1,0 +1,377 @@
+---
+title: Gemini와 함께 Droidrun 사용하기
+---
+
+이 가이드는 Google의 고급 클라우드 기반 LLM인 [Gemini](https://ai.google.dev/gemini-api/docs/)와 함께 Droidrun 프레임워크를 사용하는 방법을 설명합니다. Gemini를 Droidrun과 통합하면 Android 기기를 자동화하고, 지능형 에이전트를 구축하며, 강력한 자연어 이해 기능을 활용한 고급 워크플로를 실험할 수 있습니다.
+## Gemini란 무엇인가요?
+Gemini는 Google이 개발한 최신 대규모 언어 모델(LLM) 제품군입니다. 다양한 모델 변형(예: `gemini-2.0-flash-exp`, `gemini-2.0-flash-thinking-exp-01-21`, `gemini-exp-1206`)을 제공하며, 자연어 처리, 텍스트 생성, 멀티모달 이해(텍스트+이미지) 작업에 최적화되어 있습니다.
+
+> 📖 **Gemini 상세 설명**
+> 
+> **멀티모달(Multimodal)이란?**
+> - **정의**: 여러 종류의 데이터(텍스트, 이미지, 동영상 등)를 동시에 이해하고 처리하는 능력
+> - **쉬운 비유**: 글만 읽을 수 있는 사람 vs 글과 그림을 함께 이해하는 사람
+> 
+> **Gemini의 강점**:
+> - 📸 **이미지 이해**: 스크린샷을 보고 UI 요소 파악
+> - 🎬 **동영상 분석**: 화면 녹화에서 작업 흐름 이해
+> - 🌐 **Google 생태계**: Gmail, Drive, Search와 자연스러운 통합
+> - ⚡ **빠른 응답**: Flash 모델은 GPT-3.5 수준의 속도
+> 
+> **모델 버전 비교**:
+> | 모델 | 속도 | 성능 | 비용 | 용도 |
+> |------|------|------|------|------|
+> | **Flash** | ⚡⚡⚡ | ⭐⭐ | $ | 일반적인 자동화 |
+> | **Pro** | ⚡⚡ | ⭐⭐⭐ | $$ | 복잡한 추론 작업 |
+> | **Thinking** | ⚡ | ⭐⭐⭐⭐ | $$$ | 심층 분석 필요 시 |
+
+## Droidrun과 함께 Gemini를 사용하는 이유는?
+- **강력함:** 복잡한 지시사항과 맥락을 이해하는 고급 언어 모델입니다.
+- **멀티모달:** 텍스트와 이미지를 모두 처리할 수 있어 화면 기반 자동화에 이상적입니다.
+- **Google 통합:** Google의 생태계 및 클라우드 인프라와 원활하게 작동합니다.
+- **유연성:** 다양한 사용 사례에 맞게 여러 모델 크기를 선택할 수 있습니다.
+
+> 💡 **실무 활용 시나리오**
+> 
+> **텍스트 기반 자동화**:
+> ```python
+> # 간단한 앱 제어
+> agent = DroidAgent(
+>     goal="카카오톡 열고 홍길동에게 '안녕' 메시지 보내기",
+>     llm=gemini_flash,
+>     vision=False  # 텍스트만으로 충분
+> )
+> ```
+> 
+> **스크린샷 기반 자동화** (Gemini의 강점):
+> ```python
+> # UI 요소를 시각적으로 찾기
+> agent = DroidAgent(
+>     goal="화면에서 빨간색 '확인' 버튼 찾아서 클릭하기",
+>     llm=gemini_flash,
+>     vision=True  # 스크린샷 분석 활성화
+> )
+> ```
+> 
+> **복잡한 다단계 작업**:
+> ```python
+> # 추론이 필요한 작업
+> agent = DroidAgent(
+>     goal="인스타그램에 최신 사진 업로드하고, 내용에 맞는 해시태그 3개 생성하기",
+>     llm=gemini_pro,  # 더 강력한 모델
+>     vision=True,
+>     reasoning=True
+> )
+> ```
+
+## 사전 준비사항
+
+- **Python 3.10+**
+- Gemini API에 대한 **Google API 키** ([Google AI Studio](https://aistudio.google.com/app/apikey)에서 생성)
+- **droidrun** 프레임워크 설치 ([Droidrun 빠른 시작](../quickstart.mdx) 참조)
+
+<Warning>
+Droidrun Portal을 설정하고 활성화했는지 확인하세요.
+</Warning>
+
+> 🔑 **API 키 발급 방법**
+> 
+> 1. [Google AI Studio](https://aistudio.google.com/app/apikey) 방문
+> 2. Google 계정으로 로그인
+> 3. "Create API Key" 클릭
+> 4. 프로젝트 선택 (또는 새로 생성)
+> 5. API 키 복사 (한 번만 표시됨)
+> 
+> **무료 할당량**:
+> - Flash 모델: 분당 15회 요청
+> - Pro 모델: 분당 2회 요청
+> - 월 무료 한도: 약 $50 상당
+> 
+> **주의사항**:
+> - API 키는 비밀번호처럼 관리
+> - GitHub에 절대 업로드 금지
+> - 정기적으로 키 갱신 권장
+
+## 1. API 키 설정하기
+
+Google API 키를 환경 변수로 설정하세요:
+
+```sh
+export GOOGLE_API_KEY="your-google-api-key-here"
+```
+
+> 📖 **환경 변수로 API 키를 관리하는 이유**
+> 
+> **나쁜 방법** (❌ 절대 금지):
+> ```python
+> # 코드에 직접 하드코딩
+> api_key = "AIzaSyC-abc123def456..."  # 위험!
+> ```
+> 
+> **문제점**:
+> - Git 커밋 시 API 키 노출
+> - 코드 공유 시 키 유출
+> - GitHub에 업로드 → 자동 봇이 악용
+> 
+> **좋은 방법** (✅ 권장):
+> ```sh
+> # 환경 변수로 설정
+> export GOOGLE_API_KEY="AIzaSyC-abc123def456..."
+> ```
+> 
+> **더 좋은 방법** (✅✅ 최선):
+> ```sh
+> # .env 파일 생성 (프로젝트 루트)
+> echo "GOOGLE_API_KEY=AIzaSyC-abc123def456..." > .env
+> 
+> # .gitignore에 추가
+> echo ".env" >> .gitignore
+> 
+> # Python에서 사용
+> from dotenv import load_dotenv
+> load_dotenv()  # .env 파일 자동 로드
+> ```
+
+이 설정을 영구적으로 만들려면 shell profile(`.bashrc`, `.zshrc` 등)에 추가하세요.
+
+> 💡 **운영체제별 영구 설정**
+> 
+> **Mac/Linux (Bash)**:
+> ```sh
+> echo 'export GOOGLE_API_KEY="your-key"' >> ~/.bashrc
+> source ~/.bashrc
+> ```
+> 
+> **Mac (Zsh, Catalina 이후)**:
+> ```sh
+> echo 'export GOOGLE_API_KEY="your-key"' >> ~/.zshrc
+> source ~/.zshrc
+> ```
+> 
+> **Windows (PowerShell)**:
+> ```powershell
+> # 영구 환경 변수 설정
+> [System.Environment]::SetEnvironmentVariable(
+>     "GOOGLE_API_KEY",
+>     "your-key",
+>     "User"
+> )
+> ```
+> 
+> **설정 확인**:
+> ```sh
+> echo $GOOGLE_API_KEY
+> # 키가 출력되면 성공
+> ```
+
+## 2. 필수 Python 패키지 설치하기
+
+```sh
+pip install 'droidrun[google]'
+```
+
+> 📦 **패키지 설치 상세**
+> 
+> `droidrun[google]`는 다음을 설치합니다:
+> - `llama-index-llms-gemini`: Gemini API 클라이언트
+> - `google-generativeai`: Google AI Python SDK
+> - 기타 종속성
+> 
+> **여러 프로바이더 동시 설치**:
+> ```sh
+> pip install 'droidrun[google,openai,ollama]'
+> ```
+
+## 3. 예시: Gemini와 함께 Droidrun 사용하기
+
+다음은 Gemini를 LLM 백엔드로 사용하여 Droidrun을 사용하는 최소 예시입니다:
+
+```python
+import asyncio
+from llama_index.llms.gemini import Gemini
+from droidrun import DroidAgent, AdbTools
+
+async def main():
+    # 첫 번째로 연결된 기기의 adb 도구 로드
+    tools = AdbTools()
+
+    # Gemini LLM 설정 (환경 변수에서 API 키 사용)
+    llm = Gemini(
+        model="gemini-2.0-flash-exp",  # 또는 "gemini-2.0-flash-thinking-exp-01-21", "gemini-exp-1206" 등
+    )
+
+    # DroidAgent 생성
+    agent = DroidAgent(
+        goal="설정 앱 열고 배터리 잔량 확인하기",
+        llm=llm,
+        tools=tools,
+        vision=False,        # 스크린샷 기반 비전을 활성화하려면 True로 설정
+        reasoning=False,     # 선택 사항: 계획/추론 활성화
+    )
+
+    # 에이전트 실행
+    result = await agent.run()
+    print(f"성공: {result['success']}")
+    if result.get('output'):
+        print(f"출력: {result['output']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+> 💡 **실전 코드 패턴**
+> 
+> **비전 기능 활용** (스크린샷 분석):
+> ```python
+> # UI 요소를 시각적으로 찾아야 할 때
+> llm = Gemini(model="gemini-2.0-flash-exp")
+> agent = DroidAgent(
+>     goal="화면에서 '로그인' 버튼 찾아서 클릭",
+>     llm=llm,
+>     tools=tools,
+>     vision=True  # 스크린샷 활용
+> )
+> ```
+> 
+> **비용 절감 모드** (텍스트만):
+> ```python
+> # 텍스트 기반 작업은 vision 끄기
+> agent = DroidAgent(
+>     goal="설정 앱 열기",
+>     llm=llm,
+>     tools=tools,
+>     vision=False  # API 호출 비용 절감
+> )
+> ```
+> 
+> **복잡한 작업** (추론 + 반성):
+> ```python
+> llm = Gemini(model="gemini-2.0-flash-thinking-exp-01-21")
+> agent = DroidAgent(
+>     goal="메일 앱 열고 최신 메일 읽고 요약해줘",
+>     llm=llm,
+>     tools=tools,
+>     vision=True,
+>     reasoning=True,      # 다단계 계획 수립
+>     reflection=True      # 결과 검증
+> )
+> ```
+> 
+> **에러 처리 포함**:
+> ```python
+> try:
+>     result = await agent.run()
+>     if result['success']:
+>         print(f"성공: {result['output']}")
+>     else:
+>         print(f"실패: {result.get('error', '알 수 없는 오류')}")
+> except Exception as e:
+>     print(f"예외 발생: {e}")
+> ```
+
+## 4. 문제 해결
+
+- **인증 오류:** API 키가 올바르게 설정되어 있고 환경 변수 또는 인자를 통해 제공되는지 확인하세요.
+- **모델을 찾을 수 없음:** 모델 이름이 Gemini가 지원하는 것과 일치하는지 확인하세요.
+- **할당량 초과:** API 할당량 및 요금제 한도를 확인하세요. 필요시 Google Cloud Console에서 확장하세요.
+- **비전이 작동하지 않음:** `vision=True`로 설정하고 선택한 Gemini 모델이 멀티모달 입력을 지원하는지 확인하세요.
+
+> 🔧 **구체적인 문제 해결 방법**
+> 
+> **1. "API Key not found" 에러**
+> ```sh
+> # 환경 변수 확인
+> echo $GOOGLE_API_KEY
+> 
+> # 비어있으면 재설정
+> export GOOGLE_API_KEY="your-actual-key"
+> 
+> # Python에서 확인
+> import os
+> print(os.getenv("GOOGLE_API_KEY"))
+> ```
+> 
+> **2. "Invalid API Key" 에러**
+> - Google AI Studio에서 새 키 생성
+> - 키 앞뒤 공백 확인
+> - 복사 시 잘림 확인 (전체 키 복사)
+> 
+> **3. "Resource exhausted" (할당량 초과)**
+> ```python
+> # 해결 방법 1: 요청 간 대기 시간 추가
+> import asyncio
+> await asyncio.sleep(4)  # 분당 15회 제한 고려
+> 
+> # 해결 방법 2: 에러 핸들링으로 재시도
+> from tenacity import retry, stop_after_attempt, wait_fixed
+> 
+> @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
+> async def run_with_retry():
+>     return await agent.run()
+> ```
+> 
+> **4. "Model not found" 에러**
+> ```python
+> # 지원 모델 목록 확인
+> # https://ai.google.dev/gemini-api/docs/models
+> 
+> # 안전한 모델명들:
+> valid_models = [
+>     "gemini-2.0-flash-exp",
+>     "gemini-1.5-pro",
+>     "gemini-1.5-flash"
+> ]
+> 
+> llm = Gemini(model="gemini-2.0-flash-exp")  # 최신 안정 버전
+> ```
+> 
+> **5. Vision이 작동하지 않을 때**
+> ```python
+> # 확인 사항:
+> # 1) vision=True 설정 확인
+> # 2) 모델이 멀티모달 지원 확인
+> # 3) 스크린샷 파일 크기 확인 (5MB 이하)
+> 
+> agent = DroidAgent(
+>     goal="이미지 기반 작업",
+>     llm=Gemini(model="gemini-2.0-flash-exp"),  # 비전 지원 모델
+>     tools=tools,
+>     vision=True  # 반드시 True
+> )
+> ```
+> 
+> **6. 느린 응답 속도**
+> ```python
+> # Flash 모델 사용 (Pro보다 빠름)
+> llm = Gemini(model="gemini-2.0-flash-exp")
+> 
+> # 또는 timeout 설정
+> llm = Gemini(
+>     model="gemini-2.0-flash-exp",
+>     timeout=30  # 30초 제한
+> )
+> ```
+
+## 5. 더 읽어보기
+
+- [Gemini API 문서](https://ai.google.dev/gemini-api/docs/)
+- [Google AI Studio](https://aistudio.google.com/)
+- [llama-index Gemini LLM 문서](https://docs.llamaindex.ai/en/stable/api_reference/llms/gemini/)
+
+> 📚 **추가 학습 자료**
+> 
+> **공식 문서**:
+> - [Gemini 모델 가이드](https://ai.google.dev/gemini-api/docs/models/gemini) - 각 모델의 상세 스펙
+> - [비전 기능 가이드](https://ai.google.dev/gemini-api/docs/vision) - 이미지/동영상 처리 방법
+> - [가격 정책](https://ai.google.dev/pricing) - 비용 계산 및 무료 할당량
+> 
+> **커뮤니티**:
+> - [Droidrun Discord](https://discord.gg/droidrun) - 사용자 질문/답변
+> - [Gemini API 포럼](https://discuss.ai.google.dev/) - Google 공식 포럼
+> 
+> **예제 프로젝트**:
+> - [Droidrun Examples](https://github.com/droidrun/droidrun/tree/main/examples) - 실전 코드 예시
+
+---
+
+이 설정을 통해 Droidrun과 함께 Google의 최신 Gemini LLM의 강력한 기능을 Android 자동화 및 에이전트 기반 워크플로에 활용할 수 있습니다!

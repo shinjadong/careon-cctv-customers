@@ -1,0 +1,395 @@
+---
+title: CLI 사용법
+---
+
+# DroidRun CLI 가이드: OpenAILike, Ollama, Gemini 프로바이더 사용하기
+DroidRun을 사용하면 자연어와 LLM 에이전트를 통해 Android 기기를 제어할 수 있습니다. 이 가이드에서는 세 가지 인기 있는 LLM 프로바이더인 **OpenAILike**, **Ollama**, **Gemini**로 CLI를 사용하는 방법을 설명합니다.
+
+> 📖 **CLI (Command Line Interface)란?**
+> 
+> **정의**: 명령어를 텍스트로 입력하여 프로그램을 실행하는 방식
+> 
+> **쉬운 비유**: 
+> - GUI(그래픽 인터페이스) = 버튼 클릭하는 식당 키오스크
+> - CLI = 점원에게 직접 말로 주문하는 방식
+> 
+> **장점**:
+> - 자동화 스크립트 작성 가능
+> - 빠르고 정확한 명령 실행
+> - 원격 서버에서도 사용 가능
+
+---
+
+## 사전 준비사항
+
+<Steps>
+    <Step title="DroidRun과 종속성을 설치합니다. 사용하려는 프로바이더를 선택하세요.">
+       ```sh 
+       pip install 'droidrun[google,anthropic,openai,deepseek,ollama,dev]'
+       ```
+       
+       > 💡 **설치 옵션 설명**
+       > - `google`: Gemini 사용
+       > - `anthropic`: Claude 사용
+       > - `openai`: GPT 사용
+       > - `deepseek`: DeepSeek 사용
+       > - `ollama`: 로컬 모델 사용
+       > - `dev`: 개발자 도구 포함
+       > 
+       > 필요한 것만 선택 가능: `pip install 'droidrun[openai,ollama]'`
+    </Step>
+    <Step title="Android 기기가 연결되어 있고 DroidRun Portal이 설치되어 있는지 확인하세요">
+       DroidRun Portal APK 다운로드 및 설치
+       ```sh 
+       droidrun setup
+       ```   
+
+       모든 것이 올바르게 설정되었는지 확인
+       ```sh
+       droidrun ping
+       ```
+       
+       > 🔍 **ping 명령어란?**
+       > 
+       > 컴퓨터와 Android 기기가 제대로 연결되었는지 확인하는 "연결 테스트"입니다.
+       > 
+       > **성공 시**: "연결됨" 메시지 표시
+       > **실패 시**: USB 케이블, ADB 설정, Portal 앱 권한 확인 필요
+    </Step>
+    <Step title="기본 제공되지 않는 프로바이더를 사용하려면 필요한 LlamaIndex LLM 통합을 설치하세요">
+      ```sh
+      pip install llama-index-llms-openrouter
+      ```
+      
+      > 📖 **LlamaIndex LLM 통합이란?**
+      > 
+      > 각 LLM 프로바이더(OpenAI, Anthropic 등)와 통신하기 위한 "어댑터"입니다.
+      > 
+      > **쉬운 비유**: 해외 여행 시 필요한 전기 플러그 어댑터
+      > - 한국(DroidRun) ↔ 미국 콘센트(OpenAI) 연결하려면 어댑터 필요
+      > - 프로바이더마다 다른 어댑터(llama-index-llms-xxx) 필요
+    </Step>
+</Steps>
+---
+
+## 일반 CLI 사용법
+실행할 메인 명령어:
+
+```sh
+droidrun run "<자연어 명령>" [옵션]
+```
+
+### 주요 옵션
+
+- `--provider/-p`: LLM 프로바이더 (`OpenAILike`, `Ollama`, `GoogleGenAI` 등)
+- `--model/-m`: 모델 이름 (프로바이더마다 다름)
+- `--base_url/-u`: API의 기본 URL (Ollama/OpenAILike용)
+- `--api_base`: API 기본 URL (OpenAI/OpenAILike용)
+- `--temperature`: LLM 온도 (기본값: 0.2)
+- `--vision`: 스크린샷 기반 비전 활성화 (플래그)
+- `--reasoning`: 추론을 통한 계획 수립 활성화 (플래그)
+- `--reflection`: 반성(검증) 단계 활성화 (플래그)
+- `--tracing`: 추적 활성화 (플래그)
+- `--debug`: 상세 로깅 (플래그)
+
+> 📖 **주요 옵션 상세 설명**
+> 
+> **temperature (온도)**:
+> - **낮은 값 (0.0~0.3)**: 일관적이고 예측 가능한 답변 (자동화에 적합)
+> - **높은 값 (0.7~1.0)**: 창의적이고 다양한 답변 (탐색적 작업에 적합)
+> - **예시**: 0.2 = "설정 앱 열기"라는 명령을 항상 같은 방식으로 실행
+> 
+> **--vision (비전 모드)**:
+> - 스크린샷을 찍어서 LLM에게 보여줌
+> - **언제 사용**: 텍스트만으로 설명하기 어려운 UI 조작
+> - **예시**: "빨간색 버튼 클릭해" 같은 시각적 명령
+> 
+> **--reasoning (추론 모드)**:
+> - LLM이 작업을 단계별로 계획하고 실행
+> - **언제 사용**: 복잡한 다단계 작업
+> - **예시**: "인스타그램에 사진 업로드하고 해시태그 3개 추가해"
+> 
+> **--reflection (반성 모드)**:
+> - 작업 후 결과를 검증하고 재시도
+> - **언제 사용**: 정확성이 중요한 작업
+> - **예시**: 송금, 중요한 설정 변경 등
+> 
+> **--tracing (추적 모드)**:
+> - 각 단계의 실행 과정을 기록
+> - **언제 사용**: 디버깅, 작동 원리 이해하고 싶을 때
+> - **출력**: "1단계: 설정 앱 찾기 → 2단계: 클릭 → 3단계: ..." 형태
+
+---
+
+## 프로바이더별 예시
+다양한 프로바이더별 DroidRun CLI 사용 예시를 확인할 수 있습니다
+
+<Expandable title="OpenAILike 프로바이더 사용하기"> 
+### **OpenAILike** 프로바이더 사용하기
+
+OpenAILike는 OpenAI 호환 API용입니다 (예: OpenRouter, 로컬 OpenAI 호환 서버 등).
+
+> 📖 **OpenAILike vs OpenAI**
+> 
+> - **OpenAI**: 공식 OpenAI API 전용 (GPT-4, GPT-3.5 등)
+> - **OpenAILike**: OpenAI API 규격을 따르는 모든 서비스
+> 
+> **OpenAILike로 사용 가능한 서비스**:
+> - **OpenRouter**: 100개 이상 모델을 하나의 API로 (claude, llama, gpt 등)
+> - **Azure OpenAI**: 마이크로소프트 클라우드의 GPT
+> - **LM Studio**: 내 컴퓨터에서 돌아가는 로컬 모델
+> - **vLLM**: 자체 호스팅 LLM 서버
+
+**필수 인자:**
+- `--provider OpenAILike`
+- `--model <모델명>` (예: `gpt-3.5-turbo`)
+- `--api_base <API 엔드포인트>` (예: `https://openrouter.ai/api/v1`)
+**예시:**
+```sh
+export OPENAI_API_KEY=<your-api-key>
+droidrun run \
+  --provider OpenAILike \
+  --model qwen/qwen2.5-vl-72b-instruct:free \
+  --api_base https://openrouter.ai/api/v1 \
+  "설정 앱 열어줘"
+```
+
+> 💡 **OpenRouter 사용 팁**
+> 
+> OpenRouter는 여러 모델을 테스트하기 좋은 서비스입니다:
+> - 하나의 API 키로 Claude, GPT, Llama 등 모두 사용
+> - 무료 모델도 제공 (`:free` 접미사)
+> - 모델 성능/비용 비교 가능
+> 
+> **실무 활용**:
+> 1. 개발 단계: 무료 모델로 프로토타입
+> 2. 성능 테스트: 여러 모델 비교
+> 3. 프로덕션: 최적 모델 선택
+</Expandable>
+
+<Expandable title="Ollama 프로바이더 사용하기">
+### **Ollama** 프로바이더 사용하기
+Ollama는 [Ollama 서버](https://ollama.com/)를 통해 로컬에서 오픈소스 모델을 실행하기 위한 것입니다.
+> 📖 **Ollama란?**
+> 
+> **정의**: 내 컴퓨터에서 LLM을 실행할 수 있게 해주는 오픈소스 도구
+> 
+> **쉬운 비유**: Netflix(클라우드) vs 다운로드한 영화(로컬)
+> - OpenAI API = Netflix처럼 인터넷으로 스트리밍
+> - Ollama = 영화를 다운로드해서 오프라인으로 재생
+> 
+> **장점**:
+> - ✅ 비용 무료 (API 요금 없음)
+> - ✅ 인터넷 불필요 (비행기에서도 사용 가능)
+> - ✅ 데이터 프라이버시 (내 컴퓨터에서만 처리)
+> - ✅ 무제한 사용 (속도 제한 없음)
+> 
+> **단점**:
+> - ❌ 컴퓨터 사양 필요 (GPU 권장)
+> - ❌ 성능이 상용 모델보다 낮을 수 있음
+> 
+> **추천 사용 케이스**:
+> - 민감한 데이터 처리
+> - 비용 절감 필요 시
+> - 오프라인 작업 환경
+
+**필수 인자:**
+- `--provider Ollama`
+- `--model <모델명>` (예: `llama4`, `gemma3`)
+- `--base_url <Ollama 서버 URL>` (기본값: `http://localhost:11434`)
+**예시:**
+```sh
+droidrun run \
+  --provider Ollama \
+  --model qwen2.5vl:3b \
+  --base_url http://localhost:11434 \
+  "설정 앱 열어줘"
+```
+
+기본적으로 로컬 Ollama에는 API 키가 필요하지 않습니다.
+
+> 💡 **Ollama 모델 선택 가이드**
+> 
+> **경량 모델 (빠르지만 덜 정확)**:
+> - `qwen2.5vl:3b`: 비전 지원, 빠른 속도
+> - `llama3.2:3b`: 범용, 저사양 PC 가능
+> 
+> **중량 모델 (느리지만 더 정확)**:
+> - `llama3:70b`: 최고 성능, GPU 필수
+> - `qwen2.5vl:32b`: 비전 + 높은 성능
+> 
+> **사양별 추천**:
+> - 일반 노트북 (8GB RAM): 3b 모델
+> - 게이밍 PC (16GB RAM + GPU): 7b~13b 모델
+> - 고사양 워크스테이션: 32b+ 모델
+</Expandable>
+
+<Expandable title="Gemini 프로바이더 사용하기">
+### **Gemini** 프로바이더 사용하기
+
+Gemini는 GoogleGenAI 프로바이더를 통해 Google의 Gemini 모델을 사용합니다.
+
+> 📖 **Gemini란?**
+> 
+> Google이 개발한 멀티모달 LLM (텍스트 + 이미지 + 비디오 이해 가능)
+> 
+> **특징**:
+> - 무료 할당량 제공 (하루 50회 요청 등)
+> - Google 생태계 통합 (Gmail, Drive 등)
+> - 강력한 비전 기능
+> 
+> **다른 모델과 비교**:
+> - GPT-4: 추론 능력 우수
+> - Claude: 긴 문맥 이해 우수
+> - **Gemini**: 멀티모달 + Google 서비스 연동 우수
+
+**필수 인자:**
+- `--provider GoogleGenAI`
+- `--model <모델명>` (예: `gemini-2.5-flash`)
+- Google API 자격증명 (`GOOGLE_API_KEY` 환경 변수 설정 또는 CLI 옵션으로 전달)
+**예시:**
+```sh
+export GOOGLE_API_KEY=<your-google-api-key>
+droidrun run \
+  --provider GoogleGenAI \
+  --model gemini-2.5-flash \
+  "설정 앱 열어줘" 
+```
+
+> 💡 **Gemini 모델 선택**
+> 
+> - **gemini-2.5-flash**: 빠르고 저렴, 일반적인 작업에 적합
+> - **gemini-2.5-pro**: 고성능, 복잡한 추론 필요 시
+> - **gemini-2.5-flash-8b**: 초경량, 단순 작업용
+> 
+> **API 키 발급**: [Google AI Studio](https://makersuite.google.com/app/apikey)
+</Expandable>
+
+<Expandable title="DeepSeek 프로바이더 사용하기">
+### **DeepSeek** 프로바이더 사용하기
+
+DeepSeek은 자연어 Android 자동화를 위해 DroidRun과 함께 사용할 수 있는 강력한 LLM 프로바이더입니다.
+
+> 📖 **DeepSeek이란?**
+> 
+> 중국의 AI 연구소에서 개발한 오픈소스 LLM
+> 
+> **특징**:
+> - 매우 저렴한 API 비용 (GPT-4 대비 1/10 수준)
+> - 코딩/추론 능력 우수
+> - 오픈소스 모델 제공
+> 
+> **제한사항**:
+> - ⚠️ **비전(Vision) 미지원**: 스크린샷 분석 불가
+> - 중국 서버로 인한 지연 가능
+
+**필수 인자:**
+- `--provider DeepSeek`
+- `--model <모델명>` (예: `deepseek-chat`, `deepseek-coder`, `deepseek-moe` 등)
+- DeepSeek API 자격증명 (`DEEPSEEK_API_KEY` 환경 변수 설정 또는 CLI 옵션으로 전달)
+<Warning>DeepSeek 모델은 비전 기능을 지원하지 않습니다. `--vision` 플래그를 사용하지 마세요.</Warning>
+**예시:**
+```sh
+export DEEPSEEK_API_KEY=<your-deepseek-api-key>
+droidrun run \
+  --provider DeepSeek \
+  --model deepseek-chat \
+  "설정 앱 열어줘"
+```
+
+> 💡 **DeepSeek 사용 시나리오**
+> 
+> **적합한 경우**:
+> - 텍스트 기반 자동화 (설정 변경, 앱 실행 등)
+> - 비용이 중요한 대규모 자동화
+> - 코드 생성이 필요한 작업
+> 
+> **부적합한 경우**:
+> - 스크린샷 분석 필요 시 (`--vision` 사용 불가)
+> - "빨간색 버튼 클릭" 같은 시각적 명령
+> - 이미지 기반 UI 인식
+</Expandable>
+
+---
+
+## 추가 팁
+- `droidrun devices`를 사용하여 연결된 기기 목록을 확인하세요.
+- 더 복잡한 작업을 위해 스크린샷 기반 비전을 활성화하려면 `--vision`을 사용하세요.
+- 문제 해결 시 상세 로그를 보려면 `--debug`를 사용하세요.
+- iOS의 경우 `--ios`를 추가하고 기기 URL을 지정하세요.
+
+> 💡 **실전 명령어 조합 예시**
+> 
+> **기본 작업** (빠르고 저렴):
+> ```sh
+> droidrun run "카카오톡 열어줘"
+> ```
+> 
+> **복잡한 UI 조작** (비전 필요):
+> ```sh
+> droidrun run --vision "화면의 빨간색 버튼 클릭해"
+> ```
+> 
+> **다단계 작업** (추론 + 반성):
+> ```sh
+> droidrun run --reasoning --reflection \
+>   "인스타그램에 최신 사진 업로드하고 해시태그 3개 추가해"
+> ```
+> 
+> **디버깅 모드**:
+> ```sh
+> droidrun run --debug --tracing "설정에서 Wi-Fi 켜줘"
+> ```
+
+---
+
+## 문제 해결
+
+- **기기를 찾을 수 없음:** 기기가 연결되어 있고 ADB에 대해 인증되었는지 확인하세요.
+- **프로바이더 오류:** 올바른 LlamaIndex 통합을 설치했고 필요한 API 키를 설정했는지 확인하세요.
+- **모델을 찾을 수 없음:** 프로바이더의 모델 이름을 다시 확인하세요.
+
+> 🔧 **자주 발생하는 문제와 해결법**
+> 
+> **1. "No devices found" 에러**
+> ```sh
+> # 해결 순서:
+> adb devices              # 기기가 보이는지 확인
+> droidrun ping            # 연결 테스트
+> # USB 케이블 재연결 또는 USB 디버깅 재활성화
+> ```
+> 
+> **2. API 키 오류**
+> ```sh
+> # API 키 확인 방법:
+> echo $OPENAI_API_KEY     # 환경변수 설정 확인
+> # 또는 명령어에 직접 포함:
+> droidrun run --api-key sk-xxxxx ...
+> ```
+> 
+> **3. 모델 이름 오류**
+> - OpenRouter: `qwen/qwen2.5-vl-72b-instruct` (슬래시 포함)
+> - Ollama: `qwen2.5vl:3b` (콜론으로 버전 지정)
+> - Gemini: `gemini-2.5-flash` (하이픈 사용)
+> 
+> **4. 권한 에러**
+> - Portal 앱의 접근성 권한 확인
+> - Android 설정 → 접근성 → DroidRun Portal 활성화
+> 
+> **5. 느린 응답**
+> - `--debug` 플래그로 어디서 시간이 걸리는지 확인
+> - 더 빠른 모델로 전환 (flash, 3b 등)
+> - 로컬 Ollama 사용 고려
+
+---
+
+## 참고 자료
+
+- [DroidRun GitHub](https://github.com/droidrun/droidrun)
+- [LlamaIndex 문서](https://docs.llamaindex.ai/)
+- [Ollama](https://ollama.com/)
+- [Google Gemini](https://ai.google.dev/)
+
+---
+
+**즐거운 자동화 되세요!**

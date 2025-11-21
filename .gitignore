@@ -1,19 +1,18 @@
-# 데이터베이스 파일 (민감 정보)
-*.db
-*.sqlite
-*.sqlite3
+# 환경 변수 및 민감 정보 (절대 커밋 금지!)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+credentials/
+config/secrets.json
 
-# 데이터 파일 (고객 정보, 키워드 데이터)
-data/
-*.xlsx
-*.xls
-*.csv
-
-# 개인 문서
-docs/etc/
-
-# 생성된 프롬프트 (개인 작업물)
-prompts/
+# 대용량 파일만 제외 (100MB 이상)
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
 # Python
 __pycache__/

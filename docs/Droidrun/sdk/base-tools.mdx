@@ -1,0 +1,992 @@
+---
+title: Tools 기본 클래스
+---
+
+기기 제어 도구의 인터페이스를 정의하는 추상 기본 클래스입니다.
+
+<a id="droidrun.tools.tools.Tools"></a>
+
+## Tools
+
+```python
+class Tools(ABC)
+```
+
+모든 기기 제어 도구를 위한 추상 기본 클래스입니다.
+이 클래스는 모든 도구 구현이 따라야 하는 계약을 정의합니다. 다음을 제공합니다:
+- 기기 상호작용을 위한 14개의 추상 메서드 (UI, 앱, 상태, 메모리)
+- 자동 궤적 레코딩을 위한 `@ui_action` 데코레이터
+- 플랫폼 간 일관된 인터페이스 (Android, iOS)
+
+모든 구현체는 DroidAgent 및 다른 에이전트와의 호환성을 보장하기 위해 이러한 메서드를 제공해야 합니다.
+
+> 📖 **추상 기본 클래스(Abstract Base Class)란?**
+> 
+> **정의**: 직접 사용할 수 없고, 반드시 상속받아서 구현해야 하는 클래스
+> 
+> **쉬운 비유**: 설계도 또는 계약서
+> - **설계도**: "이런 기능들을 반드시 구현하세요"라고 명시
+> - **계약서**: 모든 구현체가 동일한 메서드를 제공하도록 보장
+> 
+> **왜 필요한가?**
+> ```python
+> # 나쁜 예: 플랫폼마다 다른 인터페이스
+> android_tools.tap_element(5)      # Android는 tap_element
+> ios_tools.click_by_index(5)       # iOS는 click_by_index
+> # → 코드 일관성 없음, 플랫폼 전환 어려움
+> 
+> # 좋은 예: Tools 추상 클래스로 통일
+> android_tools.tap_by_index(5)     # Android
+> ios_tools.tap_by_index(5)         # iOS
+> # → 동일한 코드로 모든 플랫폼 지원
+> ```
+> 
+> **DroidRun의 활용**:
+> - `Tools` = 추상 클래스 (인터페이스 정의)
+> - `AdbTools` = Android 구현
+> - `IOSTools` = iOS 구현
+> - 미래에 새 플랫폼 추가 가능 (예: `WindowsTools`)
+
+---
+
+## 빠른 참조
+**14개의 추상 메서드:**
+- `get_state()`, `get_date()`, `tap_by_index()`, `swipe()`, `drag()`, `input_text()`, `back()`, `press_key()`, `start_app()`, `take_screenshot()`, `list_packages()`, `get_apps()`, `remember()`, `get_memory()`, `complete()`, `_extract_element_coordinates_by_index()`
+
+**주요 속성:**
+- `save_trajectories`: `"none"` | `"step"` | `"action"` - 자동 스크린샷 캡처 제어
+- `memory`: `List[str]` - 기억된 정보 저장
+- `finished`, `success`, `reason` - 작업 완료 상태
+**데코레이터:**
+- `@Tools.ui_action` - `save_trajectories="action"`일 때 스크린샷 캡처
+
+> 💡 **save_trajectories 모드 설명**
+> 
+> ```python
+> # "none": 스크린샷 캡처하지 않음 (빠름, 저장 공간 절약)
+> tools.save_trajectories = "none"
+> 
+> # "step": 각 단계마다 캡처 (에이전트가 수동으로 캡처)
+> tools.save_trajectories = "step"
+> 
+> # "action": 모든 UI 액션마다 자동 캡처 (디버깅에 최적)
+> tools.save_trajectories = "action"
+> ```
+
+---
+
+## 아키텍처
+
+Tools 아키텍처는 2계층 패턴을 따릅니다:
+
+1. **추상 계층** (`tools.py`): 메서드 시그니처와 `@ui_action` 데코레이터를 가진 `Tools` 추상 기본 클래스를 정의합니다
+2. **구현 계층**: 플랫폼별 구현체
+   - `adb.py`: ADB와 Portal 앱(TCP 또는 content provider)을 사용하는 Android 기기용 `AdbTools`
+   - `ios.py`: Portal 앱과 통신하기 위해 HTTP API를 사용하는 iOS 기기용 `IOSTools`
+
+**주요 구성 요소:**
+- **Tools ABC**: 모든 구현체가 제공해야 하는 14개의 추상 메서드를 정의합니다
+- **@ui_action 데코레이터**: `save_trajectories="action"`일 때 스크린샷과 UI 상태를 자동 캡처합니다
+- **Portal 통합**: Android는 `PortalClient`(TCP 또는 content provider) 사용, iOS는 HTTP API 사용
+
+이 설계는 다음을 보장합니다:
+- 플랫폼 간 일관된 API
+- 새로운 기기 타입을 쉽게 추가
+- 타입 안전성 및 IDE 지원
+- 디버깅을 위한 자동 궤적 레코딩
+- 새로운 도구 구현을 위한 명확한 계약
+
+> 📖 **2계층 패턴의 장점**
+> 
+> **계층 분리**:
+> ```
+> ┌─────────────────────────────────┐
+> │   Tools (추상 계층)              │
+> │   - 인터페이스 정의              │
+> │   - @ui_action 데코레이터        │
+> └─────────────────────────────────┘
+>           ↓ 상속
+> ┌──────────────────┬──────────────────┐
+> │ AdbTools         │ IOSTools         │
+> │ (Android 구현)   │ (iOS 구현)       │
+> │ - ADB 통신       │ - HTTP API       │
+> │ - Portal TCP/CP  │ - Portal HTTP    │
+> └──────────────────┴──────────────────┘
+> ```
+> 
+> **장점**:
+> 1. **일관성**: 모든 플랫폼이 동일한 메서드명 사용
+> 2. **확장성**: 새 플랫폼 추가 시 Tools만 상속
+> 3. **유지보수**: 인터페이스 변경이 모든 구현체에 강제 적용
+> 4. **테스트**: 모의(Mock) 구현 쉽게 작성 가능
+
+---
+
+## 공통 인터페이스
+
+모든 Tools 구현체는 다음 메서드를 제공해야 합니다:
+### UI 상호작용
+- `tap_by_index(index: int) -> str` - 인덱스로 요소 탭
+- `swipe(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool` - 스와이프 제스처
+- `drag(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000) -> bool` - 드래그 제스처
+- `input_text(text: str, index: int = -1, clear: bool = False) -> str` - 텍스트 입력
+- `back() -> str` - 뒤로 가기 네비게이션
+- `press_key(keycode: int) -> str` - 키 누르기
+### 앱 관리
+- `start_app(package: str, activity: str = "") -> str` - 앱 실행
+- `list_packages(include_system_apps: bool = False) -> List[str]` - 패키지 목록
+- `get_apps(include_system_apps: bool = True) -> List[Dict[str, Any]]` - 레이블이 포함된 앱 목록
+### 상태 가져오기
+- `get_state() -> Dict[str, Any]` - UI 상태 및 접근성 트리 가져오기
+- `get_date() -> str` - 기기 날짜/시간 가져오기
+- `take_screenshot() -> Tuple[str, bytes]` - 스크린샷 캡처
+### 메모리 및 완료
+- `remember(information: str) -> str` - 컨텍스트 정보 저장
+- `get_memory() -> List[str]` - 저장된 메모리 가져오기
+- `complete(success: bool, reason: str) -> None` - 작업 완료 표시
+### 내부 헬퍼
+- `_extract_element_coordinates_by_index(index: int) -> Tuple[int, int]` - 요소 좌표 추출
+
+> 💡 **메서드 분류 이해**
+> 
+> **UI 상호작용** (사용자 동작 모방):
+> - 사람이 화면을 터치/스와이프하는 것을 프로그래밍으로 재현
+> 
+> **앱 관리** (앱 제어):
+> - 앱 실행, 종료, 목록 확인
+> 
+> **상태 가져오기** (정보 수집):
+> - 에이전트의 "눈" - 현재 화면 상태 파악
+> 
+> **메모리 및 완료** (컨텍스트 관리):
+> - 작업 중 정보 기억 및 완료 표시
+
+---
+
+## 데코레이터: @ui_action
+
+<a id="droidrun.tools.tools.Tools.ui_action"></a>
+
+```python
+@staticmethod
+def ui_action(func)
+```
+
+UI를 수정하는 액션에 대해 스크린샷과 UI 상태를 캡처하는 데코레이터입니다.
+이 데코레이터는 `save_trajectories="action"`이 활성화된 경우 궤적 레코딩을 자동으로 처리합니다. 각 UI 액션 후 디버깅 및 분석을 위해 스크린샷과 UI 상태를 캡처합니다.
+**사용법:**
+
+```python
+class MyTools(Tools):
+    @Tools.ui_action
+    def tap_by_index(self, index: int) -> str:
+        # 탭 액션 수행
+        result = self._perform_tap(index)
+
+        # 반환 후 스크린샷과 UI 상태가 자동으로 캡처됨
+        return result
+```
+
+**동작 방식:**
+1. 메서드가 정상적으로 실행되고 결과를 반환합니다
+2. 메서드 반환 후, 데코레이터는 `self.save_trajectories == "action"`인지 확인합니다
+3. True이면 호출자의 전역 스코프에서 `step_screenshots`와 `step_ui_states`를 찾습니다 (`sys._getframe(1)` 사용)
+4. 이러한 리스트가 존재하면 현재 스크린샷(`self.take_screenshot()[1]`)과 UI 상태(`self.get_state()`)를 추가합니다
+5. 완전한 궤적을 구축하여 액션 재생 및 디버깅을 가능하게 합니다
+**중요:** 데코레이터가 스크린샷을 캡처하려면 Tools 인스턴스에 `save_trajectories` 속성이 `"action"`으로 설정되어 있어야 합니다. 다른 값(`"none"`, `"step"`)은 자동 캡처를 건너뜁니다.
+**AdbTools에서 데코레이팅된 표준 메서드:**
+- `_extract_element_coordinates_by_index()` - 요소 좌표 추출
+- `swipe()` - 스와이프 제스처
+- `drag()` - 드래그 제스처
+- `input_text()` - 텍스트 입력
+- `back()` - 뒤로 가기 버튼
+- `press_key()` - 키 누르기
+- `start_app()` - 앱 실행
+- `complete()` - 작업 완료 표시
+
+참고: `tap_by_index()`는 현재 구현에서 `@ui_action`으로 데코레이팅되지 **않습니다**. 데코레이터는 `tap_by_index()`가 호출하는 내부 `_extract_element_coordinates_by_index()` 메서드에만 적용됩니다.
+
+> 📖 **@ui_action 데코레이터 상세 설명**
+> 
+> **데코레이터란?**
+> - 함수를 감싸서 추가 기능을 부여하는 패턴
+> - 원본 함수 코드를 수정하지 않고 기능 확장
+> 
+> **@ui_action의 역할**:
+> ```python
+> # 데코레이터 없이:
+> def tap_by_index(self, index):
+>     result = self._perform_tap(index)
+>     
+>     # 매번 수동으로 스크린샷 캡처해야 함
+>     if self.save_trajectories == "action":
+>         screenshot = self.take_screenshot()
+>         state = self.get_state()
+>         # 저장 로직...
+>     
+>     return result
+> 
+> # 데코레이터 사용:
+> @Tools.ui_action
+> def tap_by_index(self, index):
+>     result = self._perform_tap(index)
+>     return result  # 스크린샷 자동 캡처!
+> ```
+> 
+> **실행 순서**:
+> ```
+> 1. 메서드 호출: tap_by_index(5)
+> 2. 데코레이터 시작
+> 3. 원본 메서드 실행: _perform_tap(5)
+> 4. 메서드 반환
+> 5. 데코레이터가 save_trajectories 확인
+> 6. "action"이면 스크린샷 + UI 상태 캡처
+> 7. step_screenshots 리스트에 추가
+> 8. 최종 결과 반환
+> ```
+> 
+> **왜 tap_by_index는 데코레이팅 안 하나?**
+> - `tap_by_index()`는 내부적으로 `_extract_element_coordinates_by_index()` 호출
+> - 좌표 추출 시점에 한 번만 캡처하면 충분
+> - 중복 캡처 방지
+
+---
+
+## 커스텀 도구 통합
+
+Tools를 확장하여 플랫폼별 기능을 추가하거나 커스텀 도구 구현을 만들 수 있습니다.
+
+### 기존 도구 확장하기
+
+```python
+from droidrun.tools import AdbTools
+from typing import List
+
+class CustomAndroidTools(AdbTools):
+    """추가 메서드가 있는 커스텀 Android 도구입니다."""
+
+    def read_notifications(self) -> List[str]:
+        """알림 셰이드에서 모든 알림을 읽습니다."""
+        # 아래로 스와이프하여 알림 열기
+        self.swipe(540, 0, 540, 500)
+
+        # UI 상태 가져오기
+        state = self.get_state()
+
+        # 알림 텍스트 추출
+        notifications = []
+        for element in state['a11y_tree']:
+            if 'notification' in element['className'].lower():
+                if element['text']:
+                    notifications.append(element['text'])
+
+        # 알림 닫기
+        self.back()
+
+        return notifications
+
+# 사용법
+tools = CustomAndroidTools(serial="emulator-5554")
+notifications = tools.read_notifications()
+```
+
+> 💡 **도구 확장 실전 예시**
+> 
+> **시스템 정보 수집 도구**:
+> ```python
+> class SystemInfoTools(AdbTools):
+>     def get_battery_info(self) -> dict:
+>         """배터리 정보를 상세히 가져옵니다."""
+>         # 설정 앱 열기
+>         self.start_app("com.android.settings")
+>         self.tap_by_index(5)  # 배터리 메뉴
+>         
+>         # UI에서 정보 파싱
+>         state = self.get_state()
+>         battery_level = self._parse_battery_level(state)
+>         
+>         return {
+>             'level': battery_level,
+>             'timestamp': self.get_date()
+>         }
+> ```
+> 
+> **자동 로그인 도구**:
+> ```python
+> class AuthTools(AdbTools):
+>     def __init__(self, *args, **kwargs):
+>         super().__init__(*args, **kwargs)
+>         self.credentials = load_credentials()
+>     
+>     def login_to_app(self, app_package: str):
+>         """앱에 자동으로 로그인합니다."""
+>         self.start_app(app_package)
+>         
+>         # 로그인 필드 찾기 및 입력
+>         state = self.get_state()
+>         email_index = self._find_email_field(state)
+>         password_index = self._find_password_field(state)
+>         
+>         self.input_text(self.credentials['email'], email_index)
+>         self.input_text(self.credentials['password'], password_index)
+>         
+>         # 로그인 버튼 클릭
+>         login_btn = self._find_login_button(state)
+>         self.tap_by_index(login_btn)
+> ```
+
+### 새로운 도구 구현 만들기
+
+커스텀 Tools 구현을 만들려면 14개의 추상 메서드를 모두 구현해야 합니다:
+
+```python
+from droidrun.tools import Tools
+from typing import Any, Dict, List, Tuple
+
+class CustomTools(Tools):
+    """커스텀 도구 구현입니다."""
+
+    def __init__(self):
+        self.memory: List[str] = []
+        self.finished = False
+        self.success = None
+        self.reason = None
+        self.save_trajectories = "none"
+
+    # 필수 추상 메서드:
+    def get_state(self) -> Dict[str, Any]:
+        """'a11y_tree' 및 'phone_state' 키가 있는 딕셔너리를 반환합니다."""
+        pass
+
+    def get_date(self) -> str:
+        """기기 날짜/시간을 문자열로 반환합니다."""
+        pass
+
+    def tap_by_index(self, index: int) -> str:
+        """주어진 인덱스의 요소를 탭합니다."""
+        pass
+
+    def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool:
+        """스와이프 제스처를 수행합니다."""
+        pass
+
+    def drag(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000) -> bool:
+        """드래그 제스처를 수행합니다."""
+        pass
+
+    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
+        """텍스트를 입력합니다."""
+        pass
+
+    def back(self) -> str:
+        """뒤로 이동합니다."""
+        pass
+
+    def press_key(self, keycode: int) -> str:
+        """키코드로 키를 누릅니다."""
+        pass
+
+    def start_app(self, package: str, activity: str = "") -> str:
+        """앱을 실행합니다."""
+        pass
+
+    def take_screenshot(self) -> Tuple[str, bytes]:
+        """(형식, 이미지_바이트) 튜플을 반환합니다."""
+        pass
+
+    def list_packages(self, include_system_apps: bool = False) -> List[str]:
+        """설치된 패키지 목록입니다."""
+        pass
+
+    def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+        """패키지 및 레이블이 있는 앱 목록입니다."""
+        pass
+
+    def remember(self, information: str) -> str:
+        """정보를 메모리에 저장합니다."""
+        self.memory.append(information)
+        return f"Remembered: {information}"
+
+    def get_memory(self) -> List[str]:
+        """저장된 메모리를 가져옵니다."""
+        return self.memory.copy()
+
+    def complete(self, success: bool, reason: str = "") -> None:
+        """작업을 완료로 표시합니다."""
+        self.finished = True
+        self.success = success
+        self.reason = reason
+
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
+        """인덱스로 요소 좌표를 추출합니다."""
+        pass
+```
+
+> 💡 **새 플랫폼 구현 시 고려사항**
+> 
+> **1. 필수 구현 체크리스트**:
+> ```python
+> # 모든 추상 메서드 구현 확인
+> from abc import ABC
+> 
+> # Python이 자동으로 체크:
+> # 하나라도 구현 안 하면 인스턴스 생성 시 에러 발생
+> tools = CustomTools()  # TypeError 발생 가능
+> ```
+> 
+> **2. 플랫폼별 제약 처리**:
+> ```python
+> def drag(self, start_x, start_y, end_x, end_y, duration_ms=3000):
+>     # iOS는 드래그 미지원 예시
+>     raise NotImplementedError(
+>         "iOS does not support drag gestures"
+>     )
+> ```
+> 
+> **3. 플랫폼 최적화**:
+> ```python
+> def get_state(self):
+>     # 플랫폼마다 다른 최적화 전략
+>     if self.platform == "android":
+>         return self._get_android_a11y_tree()
+>     elif self.platform == "ios":
+>         return self._get_ios_accessibility_tree()
+> ```
+
+---
+
+## 헬퍼 함수: describe_tools
+
+<a id="droidrun.tools.tools.describe_tools"></a>
+
+```python
+def describe_tools(
+    tools: Tools,
+    exclude_tools: Optional[List[str]] = None
+) -> Dict[str, Callable[..., Any]]
+```
+
+주어진 Tools 인스턴스에서 사용 가능한 도구를 설명합니다.
+이 함수는 도구 이름을 호출 가능한 메서드에 매핑하는 딕셔너리를 생성하며, 인트로스펙션 및 동적 도구 로딩에 유용합니다.
+
+**Arguments**:
+
+- `tools` _Tools_ - 설명할 Tools 인스턴스
+- `exclude_tools` _Optional[List[str]]_ - 설명에서 제외할 도구 이름 목록
+
+**Returns**:
+
+- `Dict[str, Callable[..., Any]]` - 도구 이름을 메서드에 매핑하는 딕셔너리
+**사용법:**
+
+```python
+from droidrun.tools import AdbTools, describe_tools
+
+tools = AdbTools()
+
+# 사용 가능한 모든 도구 가져오기
+available = describe_tools(tools)
+print(available.keys())
+# 출력: dict_keys(['swipe', 'input_text', 'press_key', 'tap_by_index', 'drag',
+#                    'start_app', 'list_packages', 'remember', 'complete'])
+
+# 특정 도구 제외
+limited = describe_tools(tools, exclude_tools=['drag', 'press_key'])
+print(limited.keys())
+# 출력: dict_keys(['swipe', 'input_text', 'tap_by_index', 'start_app',
+#                    'list_packages', 'remember', 'complete'])
+
+# 동적으로 도구 사용
+tool_name = "tap_by_index"
+if tool_name in available:
+    result = available[tool_name](5)
+```
+
+**포함되는 도구:**
+- UI 상호작용: `swipe`, `input_text`, `press_key`, `tap_by_index`, `drag`
+- 앱 관리: `start_app`, `list_packages`
+- 상태 관리: `remember`, `complete`
+**기본적으로 포함되지 않는 도구:**
+- `get_state()` - 에이전트가 내부적으로 호출
+- `take_screenshot()` - 에이전트가 내부적으로 호출
+- `get_memory()` - 에이전트가 직접 액세스
+- `back()` - 일반적으로 에이전트가 처리하거나 다른 도구로 래핑됨
+
+> 💡 **describe_tools 활용 시나리오**
+> 
+> **LLM 함수 호출에 노출**:
+> ```python
+> # LLM이 호출할 수 있는 함수 목록 생성
+> tools = AdbTools()
+> available_tools = describe_tools(tools)
+> 
+> # LLM에게 제공
+> tool_descriptions = [
+>     {
+>         "name": name,
+>         "description": f"{name} 함수",
+>         "function": func
+>     }
+>     for name, func in available_tools.items()
+> ]
+> ```
+> 
+> **동적 도구 실행**:
+> ```python
+> # 사용자 입력에 따라 도구 실행
+> tool_dict = describe_tools(tools)
+> 
+> user_command = "tap_by_index"
+> user_args = [5]
+> 
+> if user_command in tool_dict:
+>     result = tool_dict[user_command](*user_args)
+> ```
+> 
+> **제한된 도구 세트 제공**:
+> ```python
+> # 안전한 도구만 노출 (테스트 환경)
+> safe_tools = describe_tools(
+>     tools,
+>     exclude_tools=['start_app', 'press_key']  # 위험한 작업 제외
+> )
+> ```
+
+---
+
+## 에이전트와의 도구 통신
+
+Tools 인스턴스는 에이전트에 전달되어 기기 제어를 위한 원자적 액션을 제공합니다. 에이전트는 이러한 메서드를 직접 호출하거나 LLM 함수 호출을 위해 래핑합니다.
+### 에이전트가 Tools를 사용하는 방법:
+
+```python
+from droidrun import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config_manager import DroidrunConfig
+
+# 도구 인스턴스 생성
+tools = AdbTools(serial="emulator-5554")
+
+# 구성 생성
+config = DroidrunConfig()
+
+# 에이전트에 전달
+agent = DroidAgent(
+    goal="설정 앱 열기",
+    tools=tools,  # 에이전트가 이러한 메서드 사용
+    config=config
+)
+
+# 에이전트 실행 내부:
+# 1. 에이전트가 tools.get_state()를 호출하여 UI 가져오기
+# 2. 에이전트가 상태를 분석하고 액션 결정
+# 3. 에이전트가 tools.tap_by_index(5)를 호출하여 요소 탭
+# 4. 에이전트가 tools.remember()를 사용하여 컨텍스트 저장
+# 5. 에이전트가 완료되면 tools.complete() 호출
+```
+
+### describe_tools()를 통한 Tools 사용:
+`describe_tools()` 함수는 LLM 함수 호출을 위한 호출 가능한 메서드를 추출합니다:
+
+```python
+from droidrun.tools import describe_tools
+
+tools = AdbTools()
+tool_dict = describe_tools(tools)
+
+# 에이전트가 동적으로 도구 호출
+for tool_name, tool_func in tool_dict.items():
+    print(f"사용 가능: {tool_name}")
+    # 에이전트가 LLM 응답에 기반하여 적절한 도구 선택
+```
+
+> 💡 **에이전트 워크플로 패턴**
+> 
+> **1. 기본 에이전트 패턴**:
+> ```python
+> # 에이전트 초기화
+> agent = DroidAgent(goal="...", tools=tools, config=config)
+> 
+> # 내부 실행 순서:
+> # 1. get_state() → 현재 화면 파악
+> # 2. LLM 분석 → 어떤 액션 필요한지 결정
+> # 3. 도구 호출 → tap_by_index(5) 같은 액션 실행
+> # 4. 결과 확인 → 성공/실패 판단
+> # 5. 반복 또는 완료
+> ```
+> 
+> **2. 고급 에이전트 패턴** (메모리 활용):
+> ```python
+> # 에이전트가 정보를 기억
+> tools.remember("사용자 이름: John")
+> tools.remember("이메일: john@example.com")
+> 
+> # 나중에 다른 단계에서 활용
+> # LLM이 get_memory()를 통해 이전 정보 참조
+> ```
+
+---
+
+## 플랫폼 비교
+
+Tools 추상 클래스는 플랫폼 간 일관된 인터페이스를 제공하지만, 각 구현은 플랫폼별 특성을 가지고 있습니다:
+
+| 기능 | Android (AdbTools) | iOS (IOSTools) |
+|------|-------------------|----------------|
+| **통신 방식** | ADB + Portal (TCP/Content Provider) | HTTP API + Portal |
+| **UI 트리** | Accessibility Tree | Accessibility Hierarchy |
+| **tap_by_index** | ✅ 완전 지원 | ✅ 완전 지원 |
+| **swipe** | ✅ 완전 지원 | ✅ 완전 지원 |
+| **drag** | ✅ 3초 기본 지속 시간 | ⚠️ 제한적 (플랫폼 제약) |
+| **input_text** | ✅ 유니코드 완전 지원 | ✅ 유니코드 완전 지원 |
+| **press_key** | ✅ Android 키코드 | ⚠️ 제한적 키 세트 |
+| **start_app** | ✅ 패키지명 + Activity | ✅ Bundle ID |
+| **스크린샷** | ✅ PNG 형식 | ✅ PNG 형식 |
+| **접근성 서비스** | Android Accessibility | iOS Accessibility |
+| **포트 포워딩** | ADB forward 필요 | 불필요 (HTTP) |
+
+> 📖 **플랫폼별 차이점 상세**
+> 
+> **Android (AdbTools) 특징**:
+> ```python
+> # Android 전용 기능
+> tools = AdbTools()
+> 
+> # Activity 지정 가능
+> tools.start_app("com.example.app", ".MainActivity")
+> 
+> # 풍부한 키코드 지원
+> tools.press_key(3)   # HOME
+> tools.press_key(4)   # BACK
+> tools.press_key(66)  # ENTER
+> 
+> # ADB 명령 직접 실행 가능
+> tools.adb_command("shell input keyevent 26")
+> ```
+> 
+> **iOS (IOSTools) 특징**:
+> ```python
+> # iOS 전용 기능
+> tools = IOSTools(device_url="http://localhost:8100")
+> 
+> # Bundle ID만 사용
+> tools.start_app("com.apple.mobilesafari")
+> 
+> # 제한된 키 지원
+> tools.press_key(66)  # ENTER만 주로 사용
+> 
+> # HTTP 기반 통신 (포트 포워딩 불필요)
+> ```
+> 
+> **크로스 플랫폼 코드 작성**:
+> ```python
+> def open_settings(tools: Tools):
+>     """Android와 iOS 모두에서 작동하는 설정 열기"""
+>     if isinstance(tools, AdbTools):
+>         tools.start_app("com.android.settings")
+>     elif isinstance(tools, IOSTools):
+>         tools.start_app("com.apple.Preferences")
+>     
+>     # 공통 로직
+>     tools.tap_by_index(5)
+> ```
+
+---
+
+## 베스트 프랙티스
+
+### 1. 항상 get_state() 먼저 호출
+
+```python
+# ❌ 나쁜 예
+tools.tap_by_index(5)  # 요소 캐시가 비어있음!
+
+# ✅ 좋은 예
+state = tools.get_state()  # 요소 캐시 채우기
+tools.tap_by_index(5)       # 이제 작동함
+```
+
+### 2. 에러 처리 추가
+
+```python
+# ❌ 나쁜 예
+result = tools.tap_by_index(999)  # 인덱스가 없어도 계속 진행
+
+# ✅ 좋은 예
+result = tools.tap_by_index(5)
+if "error" in result.lower() or "invalid" in result.lower():
+    print(f"탭 실패: {result}")
+    # 대체 전략 또는 재시도
+```
+
+### 3. 작업 완료 표시
+
+```python
+# ✅ 좋은 예
+try:
+    tools.start_app("com.android.settings")
+    tools.tap_by_index(5)
+    tools.complete(success=True, reason="설정 변경 완료")
+except Exception as e:
+    tools.complete(success=False, reason=f"오류: {e}")
+```
+
+### 4. 궤적 레코딩 활용
+
+```python
+# 디버깅이 필요한 경우
+tools.save_trajectories = "action"  # 모든 액션 캡처
+
+# 프로덕션 환경
+tools.save_trajectories = "none"   # 성능 최적화
+```
+
+### 5. 메모리 효율적 사용
+
+```python
+# ✅ 좋은 예: 핵심 정보만 저장
+tools.remember("로그인 상태: 성공")
+tools.remember("현재 화면: 대시보드")
+
+# ❌ 나쁜 예: 너무 많은 정보
+tools.remember(entire_ui_state)  # 메모리 낭비
+```
+
+> 💡 **실무 체크리스트**
+> 
+> **자동화 스크립트 작성 시 확인사항**:
+> 
+> - [ ] `test_connection()` 으로 연결 확인
+> - [ ] 각 `tap_by_index()` 전에 `get_state()` 호출
+> - [ ] 에러 처리 (try-except) 포함
+> - [ ] 작업 완료 시 `complete()` 호출
+> - [ ] 중요 정보는 `remember()` 로 저장
+> - [ ] 스크린샷이 필요한 경우 `save_trajectories` 설정
+> - [ ] 작업 후 정리 (앱 닫기 등)
+
+---
+
+## 에러 처리
+
+### 일반적인 에러와 해결 방법
+
+**1. 요소를 찾을 수 없음**
+
+```python
+# 문제: 인덱스가 존재하지 않음
+result = tools.tap_by_index(999)
+# 반환: "Invalid element index: 999. Available indices: [0, 1, 2, ...]"
+
+# 해결:
+state = tools.get_state()  # 최신 UI 트리 가져오기
+print(state)  # 사용 가능한 인덱스 확인
+tools.tap_by_index(5)  # 올바른 인덱스 사용
+```
+
+**2. Portal 연결 실패**
+
+```python
+# 문제: Portal 앱이 실행되지 않음
+if not tools.test_connection():
+    # 해결 방법 시도
+    print("Portal 연결 실패. 확인 사항:")
+    print("1. droidrun setup 실행")
+    print("2. 접근성 권한 활성화")
+    print("3. ADB 연결 확인")
+    exit(1)
+```
+
+**3. 타임아웃**
+
+```python
+# 문제: 느린 기기 또는 복잡한 UI
+try:
+    state = tools.get_state()
+except TimeoutError:
+    # 해결: 재시도 또는 더 긴 타임아웃
+    time.sleep(2)  # UI 로드 대기
+    state = tools.get_state()
+```
+
+**4. 텍스트 입력 실패**
+
+```python
+# 문제: 텍스트 필드에 포커스 없음
+tools.input_text("Hello")  # 실패
+
+# 해결: 먼저 필드 탭
+state = tools.get_state()
+tools.tap_by_index(3)  # 텍스트 필드 탭
+tools.input_text("Hello")  # 성공
+```
+
+> 🔧 **디버깅 팁**
+> 
+> **1. 상세 로깅 활성화**:
+> ```python
+> import logging
+> logging.basicConfig(level=logging.DEBUG)
+> 
+> # 모든 Tools 호출이 로그에 기록됨
+> ```
+> 
+> **2. 스크린샷으로 시각적 확인**:
+> ```python
+> # 각 단계에서 스크린샷
+> tools.get_state()
+> screenshot = tools.take_screenshot()
+> print(f"스크린샷 저장: {screenshot}")
+> ```
+> 
+> **3. UI 상태 파일로 저장**:
+> ```python
+> state = tools.get_state()
+> with open("ui_state.txt", "w") as f:
+>     f.write(state)
+> # 파일 열어서 요소 구조 분석
+> ```
+
+---
+
+## 고급: 데코레이터 스택킹
+
+여러 데코레이터를 스택하여 추가 기능을 추가할 수 있습니다:
+
+```python
+def timing_decorator(func):
+    """메서드 실행 시간을 측정하는 데코레이터"""
+    def wrapper(*args, **kwargs):
+        import time
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        print(f"{func.__name__} 실행 시간: {duration:.2f}초")
+        return result
+    return wrapper
+
+class TimedTools(AdbTools):
+    @timing_decorator
+    @Tools.ui_action
+    def tap_by_index(self, index: int) -> str:
+        return super().tap_by_index(index)
+```
+
+**실행 순서:**
+1. `timing_decorator` 시작 → 시간 측정 시작
+2. `@Tools.ui_action` 실행 → 원본 메서드 호출
+3. 원본 `tap_by_index` 실행
+4. `@Tools.ui_action` 완료 → 스크린샷 캡처 (save_trajectories="action"인 경우)
+5. `timing_decorator` 종료 → 시간 출력
+
+> 📖 **데코레이터 스택킹 고급 패턴**
+> 
+> **로깅 + 재시도 + 타이밍**:
+> ```python
+> def retry_decorator(max_attempts=3):
+>     """실패 시 재시도하는 데코레이터"""
+>     def decorator(func):
+>         def wrapper(*args, **kwargs):
+>             for attempt in range(max_attempts):
+>                 try:
+>                     return func(*args, **kwargs)
+>                 except Exception as e:
+>                     if attempt == max_attempts - 1:
+>                         raise
+>                     print(f"재시도 {attempt + 1}/{max_attempts}")
+>                     time.sleep(1)
+>         return wrapper
+>     return decorator
+> 
+> class RobustTools(AdbTools):
+>     @timing_decorator
+>     @retry_decorator(max_attempts=3)
+>     @Tools.ui_action
+>     def tap_by_index(self, index: int) -> str:
+>         return super().tap_by_index(index)
+> 
+> # 실행 순서:
+> # 1. timing_decorator → 시간 측정 시작
+> # 2. retry_decorator → 재시도 로직
+> # 3. Tools.ui_action → 스크린샷 캡처
+> # 4. 실제 tap 실행
+> # 5. 역순으로 종료
+> ```
+> 
+> **성능 모니터링**:
+> ```python
+> def performance_monitor(func):
+>     """메서드 호출 통계를 수집하는 데코레이터"""
+>     call_count = 0
+>     total_time = 0
+>     
+>     def wrapper(*args, **kwargs):
+>         nonlocal call_count, total_time
+>         start = time.time()
+>         result = func(*args, **kwargs)
+>         duration = time.time() - start
+>         
+>         call_count += 1
+>         total_time += duration
+>         print(f"{func.__name__}: {call_count}회 호출, "
+>               f"평균 {total_time/call_count:.2f}초")
+>         return result
+>     return wrapper
+> ```
+
+---
+
+## 참고 자료
+
+**관련 문서:**
+
+- [AdbTools API Reference](./adb-tools) - Android 구현 상세
+- [DroidAgent](./agent) - Tools를 사용하는 에이전트
+- [Configuration](./configuration) - Tools 설정 옵션
+- [Portal App 개념](../concepts/portal-app) - Portal 앱 작동 원리
+
+**예제 코드:**
+
+- [GitHub Examples](https://github.com/droidrun/droidrun/tree/main/examples) - 실전 사용 예시
+- [Custom Tools Examples](https://github.com/droidrun/droidrun/tree/main/examples/custom_tools) - 커스텀 도구 구현
+
+**커뮤니티:**
+
+- [Discord](https://discord.gg/droidrun) - 질문 및 토론
+- [GitHub Issues](https://github.com/droidrun/droidrun/issues) - 버그 리포트 및 기능 요청
+
+> 🎓 **학습 경로 추천**
+> 
+> **초보자**:
+> 1. ✅ Tools 기본 클래스 (현재 문서)
+> 2. 📖 [AdbTools 상세](./adb-tools) - 실제 사용 방법
+> 3. 🎨 [빠른 시작](../quickstart) - 첫 자동화 만들기
+> 
+> **중급자**:
+> 1. 🔧 커스텀 도구 확장하기
+> 2. 🎯 에이전트와 통합하기
+> 3. 📊 궤적 레코딩 활용하기
+> 
+> **고급자**:
+> 1. 🏗️ 새로운 플랫폼 구현 (예: Windows)
+> 2. 🧪 데코레이터 커스터마이징
+> 3. 🤝 오픈소스 기여하기
+
+---
+
+## 요약
+
+**Tools 추상 클래스의 핵심:**
+
+1. **통일된 인터페이스**: 모든 플랫폼에서 동일한 메서드명 사용
+2. **14개 필수 메서드**: UI 상호작용, 앱 관리, 상태 확인, 메모리 관리
+3. **@ui_action 데코레이터**: 자동 스크린샷 및 궤적 레코딩
+4. **확장 가능**: 기존 도구 확장 또는 새 플랫폼 구현
+5. **에이전트 통합**: DroidAgent와 자연스러운 통합
+
+**다음 단계:**
+
+- [AdbTools 문서](./adb-tools)에서 Android 구체적인 사용법 확인
+- [빠른 시작 가이드](../quickstart)로 첫 자동화 만들기
+- [예제 코드](https://github.com/droidrun/droidrun/tree/main/examples)로 실전 패턴 학습
+
+---

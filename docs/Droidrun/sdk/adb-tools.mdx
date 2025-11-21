@@ -1,0 +1,1289 @@
+---
+title: AdbTools
+---
+---
+title: AdbTools
+---
+
+UI Actions - Android 기기 제어를 위한 ADB를 통한 핵심 UI 상호작용 도구입니다.
+
+<a id="droidrun.tools.adb.AdbTools"></a>
+
+## AdbTools
+
+```python
+class AdbTools(Tools)
+```
+
+Android 기기 제어를 위한 핵심 UI 상호작용 도구입니다.
+
+AdbTools는 ADB(Android Debug Bridge)를 통해 Android 기기와 상호작용하기 위한 포괄적인 인터페이스를 제공합니다. Droidrun Portal 앱을 통한 기기 통신을 위해 TCP 통신과 content provider 모드를 모두 지원합니다.
+
+> 📖 **AdbTools 핵심 개념**
+> 
+> **역할**: DroidRun 프레임워크의 "손과 눈"
+> - 👁️ **눈**: 화면의 UI 요소 정보 수집 (get_state)
+> - ✋ **손**: 터치, 입력, 스와이프 등 실행 (tap, input_text, swipe)
+> 
+> **통신 방식**:
+> - **TCP 모드**: 빠름, 포트 포워딩 필요
+> - **Content Provider 모드**: 느림, 설정 불필요, 자동 폴백
+> 
+> **자동 선택**: use_tcp=True 설정 시 TCP 시도 → 실패하면 자동으로 Content Provider로 전환
+
+<a id="droidrun.tools.adb.AdbTools.__init__"></a>
+
+#### AdbTools.\_\_init\_\_
+
+```python
+def __init__(
+    serial: str | None = None,
+    use_tcp: bool = False,
+    remote_tcp_port: int = 8080,
+    app_opener_llm=None,
+    text_manipulator_llm=None,
+    credential_manager=None
+) -> None
+```
+
+AdbTools 인스턴스를 초기화합니다.
+
+**Arguments**:
+
+- `serial` _str | None_ - 기기 시리얼 번호 (예: "emulator-5554", "192.168.1.100:5555"). None이면 첫 번째 사용 가능한 기기를 자동 감지합니다.
+- `use_tcp` _bool_ - TCP 통신 우선 사용 여부 (기본값: False). TCP가 더 빠르지만 포트 포워딩이 필요합니다. TCP 실패 시 content provider 모드로 폴백됩니다.
+- `remote_tcp_port` _int_ - 기기의 Portal 앱 통신용 TCP 포트 (기본값: 8080)
+- `app_opener_llm` _LLM | None_ - 앱 열기 워크플로용 LLM 인스턴스 (선택사항). 헬퍼 도구가 자연어 설명으로 앱을 열 때 사용됩니다.
+- `text_manipulator_llm` _LLM | None_ - 텍스트 조작용 LLM 인스턴스 (선택사항). 헬퍼 도구가 텍스트 편집 작업을 수행할 때 사용됩니다.
+- `credential_manager` _CredentialManager | None_ - 비밀 정보 처리용 CredentialManager 인스턴스 (선택사항). 자동화 워크플로에서 안전한 자격 증명 액세스를 가능하게 합니다.
+
+> 📖 **파라미터 상세 설명**
+> 
+> **serial** (기기 시리얼):
+> ```python
+> # 자동 감지 (하나의 기기만 연결된 경우)
+> tools = AdbTools()
+> 
+> # 특정 기기 지정
+> tools = AdbTools(serial="emulator-5554")  # 에뮬레이터
+> tools = AdbTools(serial="ABC123DEF456")   # USB 연결 기기
+> tools = AdbTools(serial="192.168.1.100:5555")  # 무선 ADB
+> ```
+> 
+> **use_tcp** (TCP 모드):
+> - `False` (기본값): Content Provider 모드 (안정적, 느림)
+> - `True`: TCP 모드 시도 (빠름, 포트 포워딩 필요)
+> 
+> TCP 사용 시 사전 설정:
+> ```bash
+> adb forward tcp:8080 tcp:8080
+> ```
+> 
+> **app_opener_llm / text_manipulator_llm**:
+> 고급 기능용 LLM 연동
+> ```python
+> from llama_index.llms.openai import OpenAI
+> llm = OpenAI(model="gpt-4")
+> 
+> tools = AdbTools(
+>     app_opener_llm=llm,      # "인스타그램 같은 앱" 이해
+>     text_manipulator_llm=llm # 텍스트 스마트 편집
+> )
+> ```
+
+**사용법:**
+
+```python
+from droidrun.tools import AdbTools
+
+# 기기 자동 감지
+tools = AdbTools()
+
+# 특정 기기
+tools = AdbTools(serial="emulator-5554")
+
+# TCP 모드 (빠른 통신, 포트 포워딩 필요)
+tools = AdbTools(serial="emulator-5554", use_tcp=True)
+
+# 고급 워크플로를 위한 LLM 지원
+from llama_index.llms.openai import OpenAI
+llm = OpenAI(model="gpt-4")
+tools = AdbTools(
+    serial="emulator-5554",
+    app_opener_llm=llm,
+    text_manipulator_llm=llm
+)
+```
+
+**주의사항:**
+- 초기화 시 `setup_keyboard()`를 통해 Droidrun Portal 키보드를 자동으로 설정합니다
+- TCP/content provider 통신을 처리하는 PortalClient 인스턴스를 생성합니다
+- 기기 시리얼은 에뮬레이터 이름, USB 시리얼, 또는 TCP/IP 주소:포트가 될 수 있습니다
+
+---
+
+## UI 상호작용 메서드
+
+<a id="droidrun.tools.adb.AdbTools.tap_by_index"></a>
+
+#### AdbTools.tap\_by\_index
+
+```python
+def tap_by_index(index: int) -> str
+```
+
+인덱스로 UI 요소를 탭합니다.
+
+이 함수는 캐시된 클릭 가능한 요소를 사용하여 주어진 인덱스의 요소를 찾고 중심 좌표를 탭합니다.
+
+**Arguments**:
+
+- `index` _int_ - 탭할 요소의 인덱스 (접근성 트리에서)
+
+**Returns**:
+
+- `str` - 탭한 요소를 설명하는 결과 메시지
+
+> 📖 **접근성 트리(Accessibility Tree)란?**
+> 
+> **정의**: Android가 제공하는 화면 UI 요소의 계층 구조
+> 
+> **구조 예시**:
+> ```
+> [0] Screen (화면 전체)
+>   [1] Toolbar
+>     [2] Button "뒤로가기"
+>     [3] TextView "설정"
+>   [4] ScrollView
+>     [5] Button "Wi-Fi"
+>     [6] Button "Bluetooth"
+>     [7] TextView "연결됨"
+> ```
+> 
+> **인덱스 사용**:
+> - 각 UI 요소는 고유한 인덱스 번호
+> - `tap_by_index(5)` → "Wi-Fi" 버튼 클릭
+
+**사용법:**
+
+```python
+# UI 상태를 가져와서 요소 캐시 채우기
+state = tools.get_state()
+
+# 인덱스 5의 요소 탭
+result = tools.tap_by_index(5)
+print(result)
+# 출력: "Tapped element with index 5 | Text: 'Submit' | Class: android.widget.Button | Type: clickable | Coordinates: (540, 960)"
+```
+
+**주의사항:**
+- 클릭 가능한 요소 캐시를 채우기 위해 먼저 `get_state()`를 호출하세요
+- 요소 인덱스가 유효하지 않으면 예외를 발생시키지 않고 설명적인 오류 메시지를 반환합니다
+- 오류 메시지에는 디버깅에 도움이 되도록 최대 20개의 사용 가능한 인덱스가 포함됩니다
+- 대상 인덱스를 찾기 위해 중첩된 자식 요소를 자동으로 검색합니다
+- 탭한 요소에 대한 텍스트, 클래스, 타입, 자식 콘텐츠를 포함한 상세 정보를 반환합니다
+
+<a id="droidrun.tools.adb.AdbTools.tap_by_coordinates"></a>
+
+#### AdbTools.tap\_by\_coordinates
+
+```python
+def tap_by_coordinates(x: int, y: int) -> bool
+```
+
+특정 좌표에서 기기 화면을 탭합니다.
+
+**Arguments**:
+
+- `x` _int_ - X 좌표
+- `y` _int_ - Y 좌표
+
+**Returns**:
+
+- `bool` - 탭이 성공하면 True, 그렇지 않으면 False
+
+**사용법:**
+
+```python
+# 특정 화면 좌표 탭
+success = tools.tap_by_coordinates(540, 960)
+```
+
+> 💡 **좌표 기반 탭 사용 시나리오**
+> 
+> **인덱스 방식 권장** (더 안정적):
+> - UI 요소가 명확히 인식될 때
+> - 화면 해상도가 변경될 수 있을 때
+> 
+> **좌표 방식 사용**:
+> - 접근성 트리에 없는 요소 (게임, 커스텀 뷰)
+> - 정확한 위치 클릭이 필요할 때
+> - 제스처 그리기 시작점
+
+<a id="droidrun.tools.adb.AdbTools.tap"></a>
+
+#### AdbTools.tap
+
+```python
+def tap(index: int) -> str
+```
+
+인덱스로 UI 요소를 탭합니다.
+
+`tap_by_index()`의 별칭입니다. 이 함수는 마지막 `get_state()` 호출에서 캐시된 클릭 가능한 요소를 사용하여 주어진 인덱스의 요소를 찾고 중심 좌표를 탭합니다.
+
+**Arguments**:
+
+- `index` _int_ - 탭할 요소의 인덱스
+
+**Returns**:
+
+- `str` - 결과 메시지
+
+<a id="droidrun.tools.adb.AdbTools.swipe"></a>
+
+#### AdbTools.swipe
+
+```python
+def swipe(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: float = 300
+) -> bool
+```
+
+기기 화면에서 직선 스와이프 제스처를 수행합니다.
+
+길게 누르기(long press)를 수행하려면 시작 좌표와 끝 좌표를 동일하게 설정하고 필요에 따라 지속 시간을 늘리세요.
+
+**Arguments**:
+
+- `start_x` _int_ - 시작 X 좌표
+- `start_y` _int_ - 시작 Y 좌표
+- `end_x` _int_ - 끝 X 좌표
+- `end_y` _int_ - 끝 Y 좌표
+- `duration_ms` _float_ - 스와이프 지속 시간(밀리초) (기본값: 300)
+
+**Returns**:
+
+- `bool` - 스와이프가 성공하면 True, 그렇지 않으면 False
+
+> 📖 **스와이프 방향과 효과**
+> 
+> **일반적인 스와이프 패턴**:
+> ```python
+> # 위로 스와이프 (컨텐츠를 아래로 스크롤)
+> tools.swipe(540, 1500, 540, 500)
+> 
+> # 아래로 스와이프 (컨텐츠를 위로 스크롤 / 새로고침)
+> tools.swipe(540, 500, 540, 1500)
+> 
+> # 왼쪽으로 스와이프 (다음 페이지)
+> tools.swipe(800, 960, 200, 960)
+> 
+> # 오른쪽으로 스와이프 (이전 페이지)
+> tools.swipe(200, 960, 800, 960)
+> ```
+> 
+> **주의**: 손가락이 움직이는 방향과 컨텐츠가 움직이는 방향은 반대!
+> - 손가락을 위로 → 화면은 아래로 스크롤
+> - 손가락을 왼쪽으로 → 다음 페이지로
+
+**사용법:**
+
+```python
+# 위로 스와이프 (컨텐츠를 아래로 스크롤)
+tools.swipe(540, 1500, 540, 500, duration_ms=300)
+
+# 왼쪽으로 스와이프
+tools.swipe(800, 960, 200, 960, duration_ms=250)
+
+# 길게 누르기 (같은 위치에서 2초 동안 누름)
+tools.swipe(540, 960, 540, 960, duration_ms=2000)
+```
+
+**주의사항:**
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 SwipeActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+- 지속 시간은 내부적으로 초 단위로 변환됩니다(1000으로 나눔)
+
+<a id="droidrun.tools.adb.AdbTools.drag"></a>
+
+#### AdbTools.drag
+
+```python
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration: float = 3
+) -> bool
+```
+
+기기 화면에서 직선 드래그 앤 드롭 제스처를 수행합니다.
+
+**Arguments**:
+
+- `start_x` _int_ - 시작 X 좌표
+- `start_y` _int_ - 시작 Y 좌표
+- `end_x` _int_ - 끝 X 좌표
+- `end_y` _int_ - 끝 Y 좌표
+- `duration` _float_ - 드래그 지속 시간(초) (기본값: 3)
+
+**Returns**:
+
+- `bool` - 드래그가 성공하면 True, 그렇지 않으면 False
+
+> 📖 **Swipe vs Drag 차이**
+> 
+> | 특징 | Swipe | Drag |
+> |------|-------|------|
+> | **지속 시간** | 짧음 (0.3초) | 김 (3초) |
+> | **용도** | 스크롤, 페이지 넘기기 | 요소 이동, 정렬 |
+> | **예시** | 뉴스 피드 스크롤 | 아이콘 재배치 |
+> 
+> **Drag 사용 시나리오**:
+> - 홈 화면 아이콘 이동
+> - 파일 드래그 앤 드롭
+> - 슬라이더 조절
+> - 지도 이동 (길게 누르고 이동)
+
+**사용법:**
+
+```python
+# 한 위치에서 다른 위치로 요소 드래그 (3초 지속)
+tools.drag(200, 500, 800, 1200, duration=3)
+
+# 빠른 드래그 (1초)
+tools.drag(200, 500, 800, 1200, duration=1)
+```
+
+**주의사항:**
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 DragActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+- UI가 안정화될 수 있도록 드래그 작업 후 sleep을 포함합니다
+
+<a id="droidrun.tools.adb.AdbTools.input_text"></a>
+
+#### AdbTools.input\_text
+
+```python
+def input_text(text: str, index: int = -1, clear: bool = False) -> str
+```
+
+기기에 텍스트를 입력합니다.
+
+텍스트를 입력하기 전에 항상 텍스트 필드에 포커스가 있는지 확인하세요.
+
+**Arguments**:
+
+- `text` _str_ - 입력할 텍스트. 공백, 줄바꿈, 비ASCII를 포함한 특수 문자를 포함할 수 있습니다.
+- `index` _int_ - 텍스트를 입력할 요소의 인덱스. -1이면 현재 포커스된 요소를 사용합니다 (기본값: -1).
+- `clear` _bool_ - 입력하기 전에 기존 텍스트를 지울지 여부 (기본값: False)
+
+**Returns**:
+
+- `str` - 결과 메시지
+
+> 💡 **텍스트 입력 실전 가이드**
+> 
+> **방법 1: 포커스 후 입력** (권장):
+> ```python
+> # 1단계: 텍스트 필드 탭 (포커스)
+> tools.tap_by_index(3)
+> 
+> # 2단계: 텍스트 입력
+> tools.input_text("Hello World")
+> ```
+> 
+> **방법 2: 인덱스로 직접 입력**:
+> ```python
+> # 한 번에 포커스 + 입력
+> tools.input_text("user@example.com", index=5)
+> ```
+> 
+> **기존 텍스트 처리**:
+> ```python
+> # 기존 텍스트 유지하고 추가
+> tools.input_text("추가 텍스트", index=5)
+> 
+> # 기존 텍스트 삭제하고 입력
+> tools.input_text("새 텍스트", index=5, clear=True)
+> ```
+> 
+> **특수 문자 및 다국어**:
+> ```python
+> # 유니코드 지원
+> tools.input_text("안녕하세요")  # 한글
+> tools.input_text("你好世界")     # 중국어
+> tools.input_text("こんにちは")   # 일본어
+> 
+> # 여러 줄 텍스트
+> tools.input_text("첫 번째 줄\n두 번째 줄\n세 번째 줄")
+> 
+> # 특수 문자
+> tools.input_text("email@example.com")
+> tools.input_text("가격: $99.99")
+> ```
+
+**사용법:**
+
+```python
+# 먼저 요소에 포커스한 다음 텍스트 입력
+tools.tap_by_index(3)  # 텍스트 필드 포커스
+result = tools.input_text("Hello World")
+
+# 인덱스로 특정 요소에 입력
+result = tools.input_text("user@example.com", index=5)
+
+# 기존 텍스트를 지우고 새 텍스트 입력
+result = tools.input_text("New text", index=5, clear=True)
+
+# 유니코드 지원
+result = tools.input_text("你好世界")  # 중국어
+result = tools.input_text("Hello\nWorld")  # 여러 줄 텍스트
+```
+
+**주의사항:**
+- 텍스트를 입력하기 전에 항상 텍스트 필드에 포커스가 있는지 확인하세요 (`tap_by_index()` 사용 또는 `index` 파라미터 설정)
+- 신뢰할 수 있는 텍스트 입력을 위해 PortalClient를 통해 Droidrun Portal 앱 키보드를 사용합니다
+- 비ASCII를 포함한 유니코드 문자와 특수 문자를 지원합니다
+- `index != -1`이면 텍스트를 입력하기 전에 자동으로 요소를 먼저 탭합니다
+- `index` 파라미터를 사용하는 경우 요소 캐시를 채우기 위해 먼저 `get_state()`를 호출하세요
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 InputTextActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+- 50자보다 긴 텍스트는 결과 메시지에서 잘립니다 (하지만 전체 텍스트가 기기에 입력됨)
+
+---
+
+계속해서 나머지 부분을 번역하겠습니다:
+
+<a id="droidrun.tools.adb.AdbTools.back"></a>
+
+#### AdbTools.back
+
+```python
+def back() -> str
+```
+
+현재 뷰에서 뒤로 이동합니다.
+
+Android 뒤로 가기 버튼(keycode 4)을 누릅니다.
+
+**Returns**:
+
+- `str` - 결과 메시지
+
+**사용법:**
+
+```python
+result = tools.back()  # 뒤로 가기 버튼 누름
+print(result)  # 출력: "Pressed key BACK"
+```
+
+**주의사항:**
+- Android keycode 4 (KEYCODE_BACK)를 사용합니다
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 KeyPressActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+
+<a id="droidrun.tools.adb.AdbTools.press_key"></a>
+
+#### AdbTools.press\_key
+
+```python
+def press_key(keycode: int) -> str
+```
+
+Android 기기의 키를 누릅니다.
+
+**일반적인 키코드:**
+- `3`: HOME
+- `4`: BACK
+- `66`: ENTER
+- `67`: DELETE
+
+전체 키코드 참조: [Android KeyEvent 문서](https://developer.android.com/reference/android/view/KeyEvent)
+
+**Arguments**:
+
+- `keycode` _int_ - 누를 Android 키코드
+
+**Returns**:
+
+- `str` - 키 이름이 포함된 결과 메시지
+
+> 📖 **자주 사용하는 키코드 목록**
+> 
+> ```python
+> # 네비게이션
+> tools.press_key(3)   # HOME - 홈 화면
+> tools.press_key(4)   # BACK - 뒤로 가기
+> tools.press_key(82)  # MENU - 메뉴 열기
+> tools.press_key(187) # APP_SWITCH - 최근 앱
+> 
+> # 입력
+> tools.press_key(66)  # ENTER - 엔터
+> tools.press_key(67)  # DEL - 삭제
+> tools.press_key(62)  # SPACE - 스페이스
+> 
+> # 볼륨
+> tools.press_key(24)  # VOLUME_UP - 볼륨 올림
+> tools.press_key(25)  # VOLUME_DOWN - 볼륨 내림
+> tools.press_key(164) # VOLUME_MUTE - 음소거
+> 
+> # 미디어
+> tools.press_key(85)  # PLAY_PAUSE - 재생/일시정지
+> tools.press_key(87)  # NEXT - 다음 곡
+> tools.press_key(88)  # PREVIOUS - 이전 곡
+> 
+> # 전원
+> tools.press_key(26)  # POWER - 전원 버튼
+> tools.press_key(223) # SLEEP - 화면 끄기
+> tools.press_key(224) # WAKEUP - 화면 켜기
+> ```
+
+**사용법:**
+
+```python
+# 엔터 누름
+result = tools.press_key(66)
+print(result)  # 출력: "Pressed key ENTER"
+
+# 홈 버튼 누름
+tools.press_key(3)  # 출력: "Pressed key HOME"
+
+# 뒤로 가기 버튼 누름
+tools.press_key(4)  # 출력: "Pressed key BACK"
+
+# 삭제 누름
+tools.press_key(67)  # 출력: "Pressed key DELETE"
+
+# 알 수 없는 키코드는 숫자로 표시됨
+tools.press_key(999)  # 출력: "Pressed key 999"
+```
+
+**주의사항:**
+- 일반적인 키코드(3, 4, 66, 67)는 읽기 쉬운 이름(HOME, BACK, ENTER, DELETE)으로 매핑됩니다
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 KeyPressActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+
+---
+
+## 앱 관리 메서드
+
+<a id="droidrun.tools.adb.AdbTools.start_app"></a>
+
+#### AdbTools.start\_app
+
+```python
+def start_app(package: str, activity: str | None = None) -> str
+```
+
+기기에서 앱을 시작합니다.
+
+activity가 제공되지 않으면 `cmd package resolve-activity`를 사용하여 메인/런처 activity를 자동으로 해결합니다.
+
+**Arguments**:
+
+- `package` _str_ - 패키지 이름 (예: "com.android.settings", "com.google.android.apps.messaging")
+- `activity` _str | None_ - 선택적 activity 이름 (예: ".Settings"). None이면 메인 런처 activity를 자동 감지합니다.
+
+**Returns**:
+
+- `str` - 성공 또는 오류를 나타내는 결과 메시지
+
+> 📖 **Package와 Activity 이해**
+> 
+> **Package** (패키지):
+> - 앱의 고유 식별자
+> - 역도메인 형식: `com.회사명.앱명`
+> - 예: `com.kakao.talk`, `com.google.android.gm`
+> 
+> **Activity** (액티비티):
+> - 앱 내의 특정 화면
+> - 하나의 앱에 여러 Activity 존재
+> - 예: MainActivity, SettingsActivity
+> 
+> **자동 감지 기능**:
+> ```python
+> # Activity를 지정하지 않으면 자동으로 메인 화면 실행
+> tools.start_app("com.android.settings")  # 설정 앱의 메인 화면
+> 
+> # 특정 Activity 지정
+> tools.start_app("com.android.settings", ".Settings")  # 설정 메인
+> tools.start_app("com.android.settings", ".wifi.WifiSettings")  # Wi-Fi 설정
+> ```
+> **사용법:**
+
+```python
+# 자동 activity 해결로 설정 앱 시작
+result = tools.start_app("com.android.settings")
+
+# 특정 activity로 설정 앱 시작
+result = tools.start_app("com.android.settings", ".Settings")
+
+# 메시징 앱 시작
+result = tools.start_app("com.google.android.apps.messaging")
+```
+
+> 💡 **패키지명 찾는 방법**
+> 
+> **방법 1: 앱이 실행 중일 때**:
+> ```bash
+> adb shell dumpsys window | grep mCurrentFocus
+> # 출력: mCurrentFocus=Window{... com.kakao.talk/...}
+> ```
+> 
+> **방법 2: 설치된 모든 앱 목록**:
+> ```bash
+> adb shell pm list packages
+> # 출력: package:com.android.settings
+> #       package:com.kakao.talk
+> ```
+> 
+> **방법 3: 특정 앱 검색**:
+> ```bash
+> adb shell pm list packages | grep kakao
+> # 출력: package:com.kakao.talk
+> ```
+
+**주의사항:**
+- activity가 제공되지 않으면 패키지의 메인 런처 activity를 자동 해결하려고 시도합니다
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 StartAppActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+- 앱 시작 후 UI가 로드되도록 짧은 지연(0.5초)을 포함합니다
+
+<a id="droidrun.tools.adb.AdbTools.close_app"></a>
+
+#### AdbTools.close\_app
+
+```python
+def close_app(package: str) -> str
+```
+
+기기에서 앱을 강제 종료합니다.
+
+**Arguments**:
+
+- `package` _str_ - 종료할 패키지 이름 (예: "com.android.settings")
+
+**Returns**:
+
+- `str` - 성공 또는 오류를 나타내는 결과 메시지
+
+**사용법:**
+
+```python
+# 설정 앱 강제 종료
+result = tools.close_app("com.android.settings")
+
+# 메시징 앱 강제 종료
+result = tools.close_app("com.google.android.apps.messaging")
+```
+
+> 💡 **close_app vs 뒤로 가기**
+> 
+> **close_app** (강제 종료):
+> - 앱 프로세스를 완전히 종료
+> - 메모리에서 제거
+> - 백그라운드 작업도 중지
+> - 사용 예: 앱이 응답하지 않을 때, 완전히 재시작하고 싶을 때
+> 
+> **back()** (뒤로 가기):
+> - 현재 화면만 닫음
+> - 앱은 백그라운드에 계속 실행
+> - 사용 예: 정상적인 네비게이션
+
+**주의사항:**
+- `am force-stop` 명령을 사용하여 앱을 종료합니다
+- 컨텍스트가 설정된 경우 궤적 추적을 위해 CloseAppActionEvent를 발생시킵니다
+- 자동 스크린샷 캡처를 위해 `@Tools.ui_action` 데코레이터를 사용합니다
+
+<a id="droidrun.tools.adb.AdbTools.get_current_app"></a>
+
+#### AdbTools.get\_current\_app
+
+```python
+def get_current_app() -> str
+```
+
+현재 포커스된 앱의 패키지 이름을 가져옵니다.
+
+**Returns**:
+
+- `str` - 현재 앱의 패키지 이름
+
+**사용법:**
+
+```python
+# 현재 어떤 앱이 실행 중인지 확인
+current_app = tools.get_current_app()
+print(f"Current app: {current_app}")
+# 출력: Current app: com.android.settings
+```
+
+> 💡 **실무 활용 예시**
+> 
+> **특정 앱이 열려있는지 확인**:
+> ```python
+> current = tools.get_current_app()
+> if current == "com.android.settings":
+>     print("설정 앱이 열려있습니다")
+> else:
+>     tools.start_app("com.android.settings")
+> ```
+> 
+> **앱 전환 감지**:
+> ```python
+> before = tools.get_current_app()
+> tools.tap_by_index(5)  # 어떤 동작 수행
+> after = tools.get_current_app()
+> 
+> if before != after:
+>     print(f"앱이 전환되었습니다: {before} → {after}")
+> ```
+
+**주의사항:**
+- Portal 클라이언트를 통해 현재 포커스된 창 정보를 가져옵니다
+- 패키지 이름만 반환하며 activity 정보는 포함하지 않습니다
+
+---
+
+## 상태 및 스크린샷 메서드
+
+<a id="droidrun.tools.adb.AdbTools.get_state"></a>
+
+#### AdbTools.get\_state
+
+```python
+def get_state(
+    get_screenshot: bool = False,
+    max_tokens: int | None = None,
+    as_xml: bool = False
+) -> str
+```
+
+현재 UI 상태를 가져옵니다.
+
+접근성 트리에서 현재 UI 상태를 텍스트 또는 XML 형식으로 가져옵니다. 선택적으로 스크린샷을 캡처하고 클릭 가능한 요소를 캐시합니다.
+
+**Arguments**:
+
+- `get_screenshot` _bool_ - 스크린샷 캡처 여부 (기본값: False)
+- `max_tokens` _int | None_ - 반환할 최대 토큰 수. 큰 UI 트리에 유용합니다 (기본값: None)
+- `as_xml` _bool_ - True면 XML 형식으로 반환, False면 포맷된 텍스트로 반환 (기본값: False)
+
+**Returns**:
+
+- `str` - UI 상태를 나타내는 포맷된 텍스트 또는 XML 문자열
+
+> 📖 **get_state의 핵심 역할**
+> 
+> **이 메서드는 AI 에이전트의 "눈" 역할**을 합니다.
+> 
+> **반환되는 정보**:
+> - 화면의 모든 UI 요소 목록
+> - 각 요소의 텍스트, 클래스, 위치
+> - 클릭 가능한 요소들의 인덱스
+> - (선택) 스크린샷 이미지
+> 
+> **출력 예시** (텍스트 모드):
+> ```
+> [0] com.android.settings/.Settings
+>   [1] Toolbar
+>     [2] Button "뒤로가기" (clickable)
+>     [3] TextView "설정"
+>   [4] ScrollView
+>     [5] Button "Wi-Fi" (clickable)
+>     [6] TextView "연결됨"
+>     [7] Button "Bluetooth" (clickable)
+> ```
+> 
+> **max_tokens 사용**:
+> - LLM의 컨텍스트 윈도우 제한 고려
+> - 큰 화면 (100개 이상 요소)은 잘림 가능
+> - 중요한 요소만 추출하려면 제한 설정
+> 
+> ```python
+> # 긴 리스트가 있는 화면
+> state = tools.get_state(max_tokens=2000)  # 상위 요소만
+> ```
+
+**사용법:**
+
+```python
+# 기본 UI 상태 가져오기
+state = tools.get_state()
+print(state)
+
+# 스크린샷 포함
+state = tools.get_state(get_screenshot=True)
+
+# 토큰 제한 (큰 UI 트리용)
+state = tools.get_state(max_tokens=2000)
+
+# XML 형식으로 가져오기
+xml_state = tools.get_state(as_xml=True)
+```
+
+**주의사항:**
+- 이 메서드는 UI 상호작용 메서드에서 사용하기 위해 클릭 가능한 요소를 내부적으로 캐시합니다
+- `get_screenshot=True`인 경우 궤적 레코딩을 위해 스크린샷을 캡처하고 컨텍스트에 추가합니다
+- XML 형식은 프로그래밍 방식 파싱에 유용하지만 LLM에게는 텍스트 형식이 더 읽기 쉽습니다
+- 토큰 제한 시 가장 관련성 있는 UI 요소가 우선순위로 포함됩니다
+
+<a id="droidrun.tools.adb.AdbTools.get_screenshot"></a>
+
+#### AdbTools.get\_screenshot
+
+```python
+def get_screenshot() -> str
+```
+
+기기 화면의 스크린샷을 캡처하고 저장합니다.
+
+**Returns**:
+
+- `str` - 스크린샷 파일 경로
+
+**사용법:**
+
+```python
+# 스크린샷 캡처
+screenshot_path = tools.get_screenshot()
+print(f"Screenshot saved to: {screenshot_path}")
+```
+
+> 💡 **스크린샷 활용 시나리오**
+> 
+> **디버깅**:
+> ```python
+> # 작업 전후 비교
+> before = tools.get_screenshot()
+> tools.tap_by_index(5)
+> after = tools.get_screenshot()
+> ```
+> 
+> **비전 모델과 함께 사용**:
+> ```python
+> # 스크린샷을 LLM에게 전송하여 분석
+> screenshot = tools.get_screenshot()
+> # Vision-enabled LLM이 이미지 분석
+> ```
+> 
+> **자동화된 테스트**:
+> ```python
+> # 특정 단계에서 화면 상태 저장
+> for step in automation_steps:
+>     perform_action(step)
+>     tools.get_screenshot()  # 증거 보존
+> ```
+
+**주의사항:**
+- 스크린샷은 임시 디렉토리에 타임스탬프가 포함된 파일명으로 저장됩니다
+- 컨텍스트가 설정된 경우 궤적 레코딩을 위해 스크린샷이 추가됩니다
+- 파일은 PNG 형식으로 저장됩니다
+
+---
+
+## 기기 통신 메서드
+
+<a id="droidrun.tools.adb.AdbTools.communicate"></a>
+
+#### AdbTools.communicate
+
+```python
+def communicate(message: str) -> str
+```
+
+Portal 앱을 통해 기기와 통신합니다.
+
+**Arguments**:
+
+- `message` _str_ - Portal 앱으로 전송할 메시지
+
+**Returns**:
+
+- `str` - Portal 앱의 응답
+
+> 📖 **communicate 메서드의 저수준 통신**
+> 
+> 이 메서드는 일반적으로 직접 사용하지 않습니다. 다른 고수준 메서드(tap, input_text 등)가 내부적으로 사용합니다.
+> 
+> **직접 사용이 필요한 경우**:
+> - 커스텀 Portal 명령 구현
+> - 디버깅 및 테스트
+> - 새로운 기능 프로토타이핑
+
+**사용법:**
+
+```python
+# Portal 앱으로 커스텀 메시지 전송
+response = tools.communicate("custom_command")
+```
+
+**주의사항:**
+- TCP 또는 content provider 모드를 통해 Portal 클라이언트를 사용합니다
+- 일반적으로 고수준 메서드(tap, swipe 등)를 사용하는 것이 좋습니다
+
+<a id="droidrun.tools.adb.AdbTools.test_connection"></a>
+
+#### AdbTools.test\_connection
+
+```python
+def test_connection() -> bool
+```
+
+Portal 앱과의 연결을 테스트합니다.
+
+**Returns**:
+
+- `bool` - 연결이 성공하면 True, 그렇지 않으면 False
+
+**사용법:**
+
+```python
+# 연결 테스트
+if tools.test_connection():
+    print("Portal 앱과 연결됨")
+else:
+    print("연결 실패 - Portal 설정 확인 필요")
+```
+
+> 💡 **연결 테스트 실무 활용**
+> 
+> **자동화 스크립트 시작 시**:
+> ```python
+> tools = AdbTools()
+> if not tools.test_connection():
+>     print("오류: Portal 앱 연결 실패")
+>     print("해결 방법:")
+>     print("1. droidrun setup 실행")
+>     print("2. 기기에서 접근성 권한 확인")
+>     print("3. adb devices 명령으로 연결 확인")
+>     exit(1)
+> ```
+> 
+> **다중 기기 환경**:
+> ```python
+> devices = ["emulator-5554", "ABC123DEF"]
+> for device in devices:
+>     tools = AdbTools(serial=device)
+>     if tools.test_connection():
+>         print(f"{device}: 연결됨")
+>     else:
+>         print(f"{device}: 연결 실패")
+> ```
+
+**주의사항:**
+- 빠른 연결 확인으로 Portal 앱 응답성을 검증합니다
+- 작업을 시작하기 전에 기기가 준비되었는지 확인하는 데 유용합니다
+
+---
+
+## 메모리 및 완료 메서드
+
+<a id="droidrun.tools.adb.AdbTools.record_to_memory"></a>
+
+#### AdbTools.record\_to\_memory
+
+```python
+def record_to_memory(text: str) -> str
+```
+
+나중에 참조할 수 있도록 텍스트를 메모리에 기록합니다.
+
+**Arguments**:
+
+- `text` _str_ - 기록할 텍스트
+
+**Returns**:
+
+- `str` - 확인 메시지
+
+**사용법:**
+
+```python
+# 나중에 사용할 정보 저장
+tools.record_to_memory("Wi-Fi 비밀번호: MyPassword123")
+tools.record_to_memory("연락처 번호: 010-1234-5678")
+```
+
+> 💡 **메모리 활용 시나리오**
+> 
+> **다단계 작업에서 정보 전달**:
+> ```python
+> # 1단계: 정보 수집
+> battery_level = get_battery_info()
+> tools.record_to_memory(f"배터리 잔량: {battery_level}%")
+> 
+> # 2단계: 나중에 다른 작업에서 사용
+> # 에이전트가 메모리를 참조하여 배터리 정보 활용
+> ```
+> 
+> **임시 데이터 저장**:
+> ```python
+> # 화면에서 읽은 정보 저장
+> tools.record_to_memory("현재 앱: 설정")
+> tools.record_to_memory("현재 화면: Wi-Fi 설정")
+> ```
+
+**주의사항:**
+- 컨텍스트가 설정된 경우 메모리 레코딩이 추가됩니다
+- 나중에 에이전트나 LLM이 참조할 수 있는 영구적인 메모로 사용됩니다
+
+<a id="droidrun.tools.adb.AdbTools.mark_completed"></a>
+
+#### AdbTools.mark\_completed
+
+```python
+def mark_completed(
+    summary: str | None = None,
+    success: bool = True
+) -> str
+```
+
+작업을 완료로 표시하고 선택적으로 요약을 제공합니다.
+
+**Arguments**:
+
+- `summary` _str | None_ - 완료에 대한 선택적 요약
+- `success` _bool_ - 작업이 성공했는지 여부 (기본값: True)
+
+**Returns**:
+
+- `str` - 확인 메시지
+
+**사용법:**
+
+```python
+# 성공적인 완료
+tools.mark_completed("Wi-Fi를 성공적으로 활성화했습니다")
+
+# 실패한 완료
+tools.mark_completed("Wi-Fi 설정을 찾을 수 없습니다", success=False)
+```
+
+> 💡 **mark_completed 활용**
+> 
+> **에이전트 워크플로에서**:
+> ```python
+> try:
+>     # 작업 수행
+>     tools.start_app("com.android.settings")
+>     tools.tap_by_index(5)
+>     
+>     # 성공 표시
+>     tools.mark_completed("설정 변경 완료", success=True)
+> except Exception as e:
+>     # 실패 표시
+>     tools.mark_completed(f"오류 발생: {e}", success=False)
+> ```
+> 
+> **다단계 작업 추적**:
+> ```python
+> tasks = ["앱 열기", "설정 변경", "저장"]
+> for task in tasks:
+>     perform_task(task)
+>     tools.mark_completed(f"{task} 완료")
+> ```
+
+**주의사항:**
+- 컨텍스트가 설정된 경우 완료 이벤트를 추가합니다
+- 에이전트 실행 궤적과 디버깅에 유용합니다
+
+---
+
+## 속성
+
+<a id="droidrun.tools.adb.AdbTools.serial"></a>
+
+#### AdbTools.serial
+
+```python
+@property
+def serial() -> str
+```
+
+현재 연결된 기기의 시리얼 번호를 가져옵니다.
+
+**Returns**:
+
+- `str` - 기기 시리얼 번호
+
+**사용법:**
+
+```python
+tools = AdbTools()
+print(f"연결된 기기: {tools.serial}")
+# 출력: 연결된 기기: emulator-5554
+```
+
+<a id="droidrun.tools.adb.AdbTools.context"></a>
+
+#### AdbTools.context
+
+```python
+@property
+def context() -> Context | None
+```
+
+현재 실행 컨텍스트를 가져옵니다.
+
+**Returns**:
+
+- `Context | None` - 설정된 경우 컨텍스트 객체, 그렇지 않으면 None
+
+> 📖 **Context란?**
+> 
+> **정의**: 작업 실행 중 상태와 이벤트를 추적하는 객체
+> 
+> **포함 정보**:
+> - 실행된 모든 액션 이력
+> - 캡처된 스크린샷
+> - 메모리에 기록된 정보
+> - 타임스탬프와 메타데이터
+> 
+> **활용**:
+> - 디버깅: 어떤 순서로 작업이 실행되었는지 확인
+> - 재현: 동일한 작업 순서 반복
+> - 분석: 성공/실패 패턴 파악
+
+---
+
+## 주의사항
+
+- **TCP vs Content Provider:** TCP 모드가 더 빠르지만 `adb forward` 설정이 필요합니다. content provider 모드는 추가 설정 없이 작동하지만 느립니다.
+- **요소 캐싱:** `tap_by_index()` 같은 메서드는 `get_state()`가 먼저 호출되어 요소 캐시를 채워야 합니다.
+- **궤적 레코딩:** 컨텍스트가 설정된 경우 모든 UI 액션이 자동으로 디버깅 및 재생을 위해 기록됩니다.
+- **스크린샷:** 대부분의 UI 액션 메서드는 `@Tools.ui_action` 데코레이터를 사용하여 자동으로 스크린샷을 캡처합니다.
+
+> 📖 **주요 개념 보충 설명**
+> 
+> **@Tools.ui_action 데코레이터**:
+> ```python
+> @Tools.ui_action
+> def tap_by_index(self, index: int) -> str:
+>     # 이 데코레이터가 자동으로:
+>     # 1. 액션 전 스크린샷 캡처
+>     # 2. 액션 실행
+>     # 3. 이벤트 기록 (궤적)
+>     # 4. 액션 후 스크린샷 캡처 (선택적)
+> ```
+> 
+> **궤적 레코딩의 중요성**:
+> - 🔍 디버깅: 어디서 실패했는지 정확히 파악
+> - 🎬 재생: 동일한 작업 자동 반복
+> - 📊 분석: 작업 패턴 학습
+> - 📝 문서화: 작업 프로세스 자동 기록
+
+---
+
+## 예시 워크플로
+
+```python
+from droidrun.tools import AdbTools
+
+# 도구 초기화
+tools = AdbTools(serial="emulator-5554")
+
+# 연결 테스트
+if not tools.test_connection():
+    print("Portal 연결 실패")
+    exit(1)
+
+# 앱 시작
+tools.start_app("com.android.settings")
+
+# UI 상태 가져오기 및 요소 캐시 채우기
+state = tools.get_state()
+print(state)
+
+# 인덱스로 요소 탭
+tools.tap_by_index(5)
+
+# 텍스트 입력
+tools.input_text("Hello World", index=3, clear=True)
+
+# 스와이프
+tools.swipe(540, 1500, 540, 500)
+
+# 스크린샷 캡처
+screenshot_path = tools.get_screenshot()
+
+# 정보 기록
+tools.record_to_memory("설정 앱에서 Wi-Fi 활성화됨")
+
+# 작업 완료 표시
+tools.mark_completed("모든 단계 성공적으로 완료", success=True)
+
+# 앱 닫기
+tools.close_app("com.android.settings")
+```
+
+> 💡 **실전 워크플로 패턴**
+> 
+> **기본 패턴** (안전한 실행):
+> ```python
+> tools = AdbTools()
+> 
+> # 1. 연결 확인
+> if not tools.test_connection():
+>     raise Exception("기기 연결 실패")
+> 
+> # 2. 앱 시작
+> tools.start_app("com.example.app")
+> 
+> # 3. UI 확인
+> state = tools.get_state()
+> 
+> # 4. 액션 수행
+> tools.tap_by_index(5)
+> 
+> # 5. 정리
+> tools.mark_completed("완료")
+> ```
+> 
+> **에러 처리 포함**:
+> ```python
+> tools = AdbTools()
+> 
+> try:
+>     state = tools.get_state()
+>     tools.tap_by_index(5)
+>     tools.mark_completed("성공", success=True)
+> except Exception as e:
+>     tools.get_screenshot()  # 실패 시점 캡처
+>     tools.mark_completed(f"실패: {e}", success=False)
+>     raise
+> ```
+> 
+> **복잡한 자동화**:
+> ```python
+> tools = AdbTools()
+> 
+> # 여러 단계 작업
+> steps = [
+>     ("앱 열기", lambda: tools.start_app("com.app")),
+>     ("로그인", lambda: login_workflow(tools)),
+>     ("작업 수행", lambda: perform_task(tools)),
+>     ("로그아웃", lambda: logout_workflow(tools))
+> ]
+> 
+> for step_name, step_func in steps:
+>     try:
+>         step_func()
+>         tools.record_to_memory(f"{step_name} 완료")
+>     except Exception as e:
+>         tools.mark_completed(f"{step_name} 실패", False)
+>         break
+> ```
+
+---
+
+이것으로 AdbTools API 레퍼런스 문서의 완전한 번역을 마쳤습니다!
+
+
